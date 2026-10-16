@@ -140,30 +140,67 @@ def test_reconvert_and_delete(logged_in):
 
 
 
-def test_rotating_ips_trigger_slowdown_not_lockout(tmp_path, monkeypatch):
-    """Guesses from many addresses slow logins down, but never lock out the
-    real user: the right password still works."""
+
+def _flood(t, n):
+    from pdf2phone.web import auth
+    for i in range(n):
+        assert t.begin(f"10.0.{i // 250}.{i % 250}") == 0
+    return auth
+
+
+def test_throttle_counts_attempts_up_front():
+    """Parallel requests from one address: the 6th is refused even if none of
+    the first five has finished yet."""
+    from pdf2phone.web.auth import MAX_FAILURES, Throttle
+
+    t = Throttle()
+    for _ in range(MAX_FAILURES):
+        assert t.begin("198.51.100.7") == 0
+    assert t.begin("198.51.100.7") > 0
+    t2 = Throttle()
+    t2.begin("198.51.100.8")
+    t2.succeed("198.51.100.8")  # a success clears the address
+    assert t2.locked_for("198.51.100.8") == 0
+
+
+def test_throttle_memory_is_bounded(monkeypatch):
+    from pdf2phone.web import auth
+
+    monkeypatch.setattr(auth, "MAX_TRACKED_IPS", 50)
+    t = auth.Throttle()
+    _flood(t, 500)
+    assert len(t._per_ip) <= 50
+    assert len(t._global) <= auth.GLOBAL_MAX_FAILURES
+
+
+def test_global_flood_slows_unknown_devices_but_not_the_owner(tmp_path, monkeypatch):
     from pdf2phone.web import app as app_module, auth
 
-    t = auth.Throttle()
-    for i in range(auth.GLOBAL_MAX_FAILURES):
-        t.fail(f"10.0.{i // 250}.{i % 250}")
-    assert t.under_attack()
-    assert t.locked_for("192.0.2.99") == 0  # a new address isn't refused
-
-    client, _ = make_client(tmp_path)
+    client, app = make_client(tmp_path)
     slept = []
 
     async def fake_sleep(seconds):
         slept.append(seconds)
 
     monkeypatch.setattr(app_module.asyncio, "sleep", fake_sleep)
-    monkeypatch.setattr(auth, "MAX_FAILURES", 1000)  # test client is one address
-    for _ in range(auth.GLOBAL_MAX_FAILURES):
-        login(client, "nope")
-    r = login(client)
-    assert r.status_code == 303  # still gets in
-    assert slept and slept[-1] == auth.GLOBAL_DELAY_SECONDS
+
+    # The owner's phone logged in before, then logged out: it's a known device.
+    login(client)
+    client.get("/logout")
+    assert client.get("/").status_code == 303
+
+    # Flood of wrong guesses from many addresses.
+    throttle = app.state.throttle
+    _flood(throttle, auth.GLOBAL_MAX_FAILURES)
+    assert throttle.under_attack()
+
+    # Owner gets straight in, no queue.
+    assert login(client).status_code == 303 and not slept
+
+    # A stranger's device is queued and delayed, but still not refused.
+    stranger = TestClient(app, follow_redirects=False)
+    r = login(stranger)
+    assert r.status_code == 303 and slept == [auth.GLOBAL_DELAY_SECONDS]
 
 
 def test_nginx_config_overwrites_forwarded_for():

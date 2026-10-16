@@ -65,7 +65,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     static_root = Path(str(page.static_files()))
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.queue = queue  # tests use this
+    app.state.queue = queue  # tests use these
+    app.state.throttle = throttle
 
     # ------------------------------------------------------------ auth gate
     class RequireLogin(BaseHTTPMiddleware):
@@ -105,23 +106,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/login")
     async def login(request: Request, password: str = Form(""), next: str = Form("/")):
         ip = request.client.host if request.client else "unknown"
-        wait = throttle.locked_for(ip)
+        # Counted now, before any await, so parallel guesses can't all pass the check.
+        wait = throttle.begin(ip)
         if wait:
             return login_page(f"Too many wrong tries. Try again in {wait // 60 + 1} minutes.", safe_next(next), 429)
-        if throttle.under_attack():
-            # async sleep: slows guessing without tying up a worker thread
-            await asyncio.sleep(GLOBAL_DELAY_SECONDS)
-        if not password_ok(password, settings.password):
-            throttle.fail(ip)
+
+        known_device = request.session.get("dev") == 1  # signed: set only by a past successful login
+        if throttle.under_attack() and not known_device:
+            # One unknown-device attempt at a time, each delayed: caps guessing
+            # at ~1 per GLOBAL_DELAY_SECONDS overall without refusing anyone.
+            async with throttle.serial:
+                await asyncio.sleep(GLOBAL_DELAY_SECONDS)
+                ok = password_ok(password, settings.password)
+        else:
+            ok = password_ok(password, settings.password)
+
+        if not ok:
             return login_page("That password isn't right.", safe_next(next), 401)
         throttle.succeed(ip)
         request.session.clear()
         request.session["v"] = version
+        request.session["dev"] = 1
         return RedirectResponse(safe_next(next), status_code=303)
 
     @app.get("/logout")
     def logout(request: Request):
+        # Log out but remember this is a known device (skips the slow queue during attacks).
         request.session.clear()
+        request.session["dev"] = 1
         return RedirectResponse("/login", status_code=303)
 
     @app.get("/healthz")
