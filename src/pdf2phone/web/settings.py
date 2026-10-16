@@ -23,8 +23,10 @@ class Settings:
     def from_env(cls) -> "Settings":
         password = os.environ.get("PDF2PHONE_PASSWORD", "")
         secret = os.environ.get("PDF2PHONE_SECRET", "")
-        if len(password) < 8:
-            raise RuntimeError("Set PDF2PHONE_PASSWORD (at least 8 characters).")
+        if password == "change-me-to-something-long":
+            raise RuntimeError("PDF2PHONE_PASSWORD is still the example value from .env.example; choose your own.")
+        if len(password) < 12:
+            raise RuntimeError("Set PDF2PHONE_PASSWORD (at least 12 characters; a few random words is ideal).")
         if len(secret) < 32:
             raise RuntimeError(
                 "Set PDF2PHONE_SECRET to a long random string, e.g. the output of: "

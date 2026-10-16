@@ -9,10 +9,12 @@ from dataclasses import dataclass, field
 
 MAX_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
-# Backstop that doesn't trust client IPs at all: this many failures from
-# anywhere within LOCKOUT_SECONDS pauses all logins.  Worst case an attacker
-# blocks new logins for a while; already-logged-in phones keep working.
+# Backstop that doesn't depend on client IPs: after this many failures from
+# anywhere within LOCKOUT_SECONDS, every login attempt is SLOWED by
+# GLOBAL_DELAY_SECONDS (not refused), so a flood of guesses can't lock the
+# real user out and the right password still works.
 GLOBAL_MAX_FAILURES = 30
+GLOBAL_DELAY_SECONDS = 2.0
 GLOBAL_KEY = "*"
 
 
@@ -31,7 +33,11 @@ class Throttle:
 
     def locked_for(self, ip: str) -> int:
         """Seconds until ``ip`` may try again (0 = may try now)."""
-        return max(self._wait(ip, MAX_FAILURES), self._wait(GLOBAL_KEY, GLOBAL_MAX_FAILURES))
+        return self._wait(ip, MAX_FAILURES)
+
+    def under_attack(self) -> bool:
+        """Many failures from anywhere: slow every attempt down."""
+        return self._wait(GLOBAL_KEY, GLOBAL_MAX_FAILURES) > 0
 
     def _wait(self, key: str, limit: int) -> int:
         now = time.time()

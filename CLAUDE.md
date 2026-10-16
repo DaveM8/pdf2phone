@@ -15,7 +15,7 @@ uv run pytest tests/test_web.py -k upload               # one test
 uv run python scripts/make_icons.py                     # regenerate home-screen icons
 
 # web app, local (cookies need https unless PDF2PHONE_INSECURE_COOKIES=1)
-PDF2PHONE_PASSWORD=testpass123 PDF2PHONE_SECRET=$(python3 -c 'import secrets;print(secrets.token_hex(32))') \
+PDF2PHONE_PASSWORD=testpass1234 PDF2PHONE_SECRET=$(python3 -c 'import secrets;print(secrets.token_hex(32))') \
 PDF2PHONE_LIBRARY=./library PDF2PHONE_INSECURE_COOKIES=1 \
 uv run uvicorn --factory pdf2phone.web.app:create_app --reload
 
@@ -38,7 +38,7 @@ Pipeline: `engines.extract(pdf, engine)` → `Document(markdown, title, images)`
   - The catch-all `GET /{path}` serves library files, with a resolve + `is_relative_to` check that also blocks `_jobs/`.
   - Flash messages are looked up by key; user input is never echoed.
 - `web/jobs.py`: `JobQueue` with **one** worker thread (Docling uses ~3 GB of memory). Job records are kept in `<lib>/_jobs/*.json`; queued/running jobs found at startup are marked `interrupted`.
-- `web/auth.py`: `hmac.compare_digest` password check, a per-IP throttle (5 failures → 15 min lockout) and a global backstop (30 failures from anywhere → logins paused), which doesn't rely on IPs. Client IPs come from uvicorn `--proxy-headers --forwarded-allow-ips *`. That's safe only because compose publishes the port on 127.0.0.1 **and** the nginx config overwrites `X-Forwarded-For` with `$remote_addr`. Never switch it back to `$proxy_add_x_forwarded_for`.
+- `web/auth.py`: `hmac.compare_digest` password check, a per-IP throttle (5 failures → 15 min lockout) and a global backstop that doesn't rely on IPs: after 30 failures from anywhere, every attempt is *delayed* 2 s (async sleep) but never refused, so attackers can't lock the user out. The password must be ≥12 characters. Client IPs come from uvicorn `--proxy-headers --forwarded-allow-ips *`. That's safe only because compose publishes the port on 127.0.0.1 **and** the nginx config overwrites `X-Forwarded-For` with `$remote_addr`. Never switch it back to `$proxy_add_x_forwarded_for`.
 
 ## Hard rules
 

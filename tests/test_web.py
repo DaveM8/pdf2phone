@@ -139,21 +139,44 @@ def test_reconvert_and_delete(logged_in):
 
 
 
-def test_rotating_ips_still_hit_global_limit():
-    """A visitor who fakes a new address for every guess never trips the
-    per-IP limit, but the global backstop still stops them."""
-    from pdf2phone.web.auth import GLOBAL_MAX_FAILURES, MAX_FAILURES, Throttle
 
-    t = Throttle()
-    for i in range(GLOBAL_MAX_FAILURES):
-        ip = f"10.0.{i // 250}.{i % 250}"
-        assert t.locked_for(ip) == 0
-        t.fail(ip)
-    assert t.locked_for("192.0.2.99") > 0  # a brand-new address is refused too
-    assert GLOBAL_MAX_FAILURES > MAX_FAILURES
+def test_rotating_ips_trigger_slowdown_not_lockout(tmp_path, monkeypatch):
+    """Guesses from many addresses slow logins down, but never lock out the
+    real user: the right password still works."""
+    from pdf2phone.web import app as app_module, auth
+
+    t = auth.Throttle()
+    for i in range(auth.GLOBAL_MAX_FAILURES):
+        t.fail(f"10.0.{i // 250}.{i % 250}")
+    assert t.under_attack()
+    assert t.locked_for("192.0.2.99") == 0  # a new address isn't refused
+
+    client, _ = make_client(tmp_path)
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(app_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(auth, "MAX_FAILURES", 1000)  # test client is one address
+    for _ in range(auth.GLOBAL_MAX_FAILURES):
+        login(client, "nope")
+    r = login(client)
+    assert r.status_code == 303  # still gets in
+    assert slept and slept[-1] == auth.GLOBAL_DELAY_SECONDS
 
 
 def test_nginx_config_overwrites_forwarded_for():
     conf = (Path(__file__).parents[1] / "deploy/nginx-pdf2phone.conf").read_text()
     assert "proxy_set_header X-Forwarded-For $remote_addr;" in conf
     assert "$proxy_add_x_forwarded_for" not in conf
+
+
+def test_settings_reject_weak_or_example_password(monkeypatch):
+    monkeypatch.setenv("PDF2PHONE_SECRET", "s" * 64)
+    for bad in ("short", "change-me-to-something-long"):
+        monkeypatch.setenv("PDF2PHONE_PASSWORD", bad)
+        with pytest.raises(RuntimeError):
+            Settings.from_env()
+    monkeypatch.setenv("PDF2PHONE_PASSWORD", "harbour pencil violet gravy")
+    assert Settings.from_env().password == "harbour pencil violet gravy"

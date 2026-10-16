@@ -85,7 +85,7 @@ server$ nano .env
 
 In `nano`:
 
-- set `PDF2PHONE_PASSWORD` to the password you want to log in with,
+- set `PDF2PHONE_PASSWORD` to the password you want to log in with: **at least 12 characters**. A few random words, such as `harbour pencil violet gravy`, are strong and easy to type,
 - paste the long random line printed above after `PDF2PHONE_SECRET=`,
 - save with **Ctrl+O**, **Enter**, then exit with **Ctrl+X**.
 

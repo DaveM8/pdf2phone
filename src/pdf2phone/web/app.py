@@ -10,6 +10,7 @@ Everything except the login page, health check and shared static assets
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 import secrets
@@ -24,7 +25,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .. import engines, library, page
-from .auth import Throttle, password_ok
+from .auth import GLOBAL_DELAY_SECONDS, Throttle, password_ok
 from .jobs import ENGINE_LABELS, JobQueue
 from .settings import Settings
 
@@ -102,11 +103,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return login_page(next_url=safe_next(next))
 
     @app.post("/login")
-    def login(request: Request, password: str = Form(""), next: str = Form("/")):
+    async def login(request: Request, password: str = Form(""), next: str = Form("/")):
         ip = request.client.host if request.client else "unknown"
         wait = throttle.locked_for(ip)
         if wait:
             return login_page(f"Too many wrong tries. Try again in {wait // 60 + 1} minutes.", safe_next(next), 429)
+        if throttle.under_attack():
+            # async sleep: slows guessing without tying up a worker thread
+            await asyncio.sleep(GLOBAL_DELAY_SECONDS)
         if not password_ok(password, settings.password):
             throttle.fail(ip)
             return login_page("That password isn't right.", safe_next(next), 401)
