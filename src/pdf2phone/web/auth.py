@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 
 MAX_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
+# Backstop that doesn't trust client IPs at all: this many failures from
+# anywhere within LOCKOUT_SECONDS pauses all logins.  Worst case an attacker
+# blocks new logins for a while; already-logged-in phones keep working.
+GLOBAL_MAX_FAILURES = 30
+GLOBAL_KEY = "*"
 
 
 def password_ok(given: str, expected: str) -> bool:
@@ -26,17 +31,22 @@ class Throttle:
 
     def locked_for(self, ip: str) -> int:
         """Seconds until ``ip`` may try again (0 = may try now)."""
+        return max(self._wait(ip, MAX_FAILURES), self._wait(GLOBAL_KEY, GLOBAL_MAX_FAILURES))
+
+    def _wait(self, key: str, limit: int) -> int:
         now = time.time()
         with self._lock:
-            recent = [t for t in self.failures.get(ip, []) if now - t < LOCKOUT_SECONDS]
-            self.failures[ip] = recent
-            if len(recent) >= MAX_FAILURES:
-                return int(LOCKOUT_SECONDS - (now - recent[-MAX_FAILURES])) + 1
+            recent = [t for t in self.failures.get(key, []) if now - t < LOCKOUT_SECONDS]
+            self.failures[key] = recent
+            if len(recent) >= limit:
+                return int(LOCKOUT_SECONDS - (now - recent[-limit])) + 1
             return 0
 
     def fail(self, ip: str) -> None:
+        now = time.time()
         with self._lock:
-            self.failures.setdefault(ip, []).append(time.time())
+            self.failures.setdefault(ip, []).append(now)
+            self.failures.setdefault(GLOBAL_KEY, []).append(now)
 
     def succeed(self, ip: str) -> None:
         with self._lock:

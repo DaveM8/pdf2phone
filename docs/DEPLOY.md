@@ -152,6 +152,8 @@ When it asks, choose to **redirect** HTTP to HTTPS. The login cookie only works 
     ProxyPass / http://127.0.0.1:8090/
     ProxyPassReverse / http://127.0.0.1:8090/
     RequestHeader set X-Forwarded-Proto expr=%{REQUEST_SCHEME}
+    # Drop any address the visitor made up; Apache then adds the real one.
+    RequestHeader unset X-Forwarded-For early
     LimitRequestBody 104857600
     ProxyTimeout 600
 </VirtualHost>

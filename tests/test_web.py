@@ -136,3 +136,24 @@ def test_reconvert_and_delete(logged_in):
     assert client.post(f"/d/{doc_id}/delete").headers["location"] == "/?msg=deleted"
     assert client.get(f"/{doc_id}/").status_code == 404
     assert client.post("/d/_static/delete").status_code == 404
+
+
+
+def test_rotating_ips_still_hit_global_limit():
+    """A visitor who fakes a new address for every guess never trips the
+    per-IP limit, but the global backstop still stops them."""
+    from pdf2phone.web.auth import GLOBAL_MAX_FAILURES, MAX_FAILURES, Throttle
+
+    t = Throttle()
+    for i in range(GLOBAL_MAX_FAILURES):
+        ip = f"10.0.{i // 250}.{i % 250}"
+        assert t.locked_for(ip) == 0
+        t.fail(ip)
+    assert t.locked_for("192.0.2.99") > 0  # a brand-new address is refused too
+    assert GLOBAL_MAX_FAILURES > MAX_FAILURES
+
+
+def test_nginx_config_overwrites_forwarded_for():
+    conf = (Path(__file__).parents[1] / "deploy/nginx-pdf2phone.conf").read_text()
+    assert "proxy_set_header X-Forwarded-For $remote_addr;" in conf
+    assert "$proxy_add_x_forwarded_for" not in conf

@@ -38,8 +38,10 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
   CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
 
-# --proxy-headers: trust X-Forwarded-For/Proto from the host's nginx. Safe because
-# docker-compose only publishes the port on 127.0.0.1.
+# --proxy-headers: take the client address from X-Forwarded-For. Only nginx on the
+# host can reach this port (compose publishes it on 127.0.0.1), and nginx must
+# OVERWRITE that header with $remote_addr (deploy/nginx-pdf2phone.conf) — uvicorn
+# trusting "*" uses the first entry, which a visitor could otherwise forge.
 CMD ["uvicorn", "--factory", "pdf2phone.web.app:create_app", \
      "--host", "0.0.0.0", "--port", "8000", \
      "--proxy-headers", "--forwarded-allow-ips", "*"]

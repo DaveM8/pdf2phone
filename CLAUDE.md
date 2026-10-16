@@ -38,7 +38,7 @@ Pipeline: `engines.extract(pdf, engine)` → `Document(markdown, title, images)`
   - The catch-all `GET /{path}` serves library files, with a resolve + `is_relative_to` check that also blocks `_jobs/`.
   - Flash messages are looked up by key; user input is never echoed.
 - `web/jobs.py`: `JobQueue` with **one** worker thread (Docling uses ~3 GB of memory). Job records are kept in `<lib>/_jobs/*.json`; queued/running jobs found at startup are marked `interrupted`.
-- `web/auth.py`: `hmac.compare_digest` password check and a per-IP throttle (5 failures → 15 min lockout). Client IPs come from uvicorn `--proxy-headers`, which is safe only because compose publishes the port on 127.0.0.1.
+- `web/auth.py`: `hmac.compare_digest` password check, a per-IP throttle (5 failures → 15 min lockout) and a global backstop (30 failures from anywhere → logins paused), which doesn't rely on IPs. Client IPs come from uvicorn `--proxy-headers --forwarded-allow-ips *`. That's safe only because compose publishes the port on 127.0.0.1 **and** the nginx config overwrites `X-Forwarded-For` with `$remote_addr`. Never switch it back to `$proxy_add_x_forwarded_for`.
 
 ## Hard rules
 
