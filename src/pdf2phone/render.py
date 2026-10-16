@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import html
 import re
+import xml.etree.ElementTree as ET
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Callable
@@ -121,11 +122,43 @@ def _slug(text: str, used: set[str]) -> str:
     return slug
 
 
+_MATHML_NS = "http://www.w3.org/1998/Math/MathML"
+ET.register_namespace("", _MATHML_NS)
+_MATHML_TAGS = {
+    "math", "mrow", "mi", "mn", "mo", "ms", "mtext", "mspace", "msub", "msup", "msubsup",
+    "mfrac", "msqrt", "mroot", "mstyle", "mtable", "mtr", "mtd", "mlabeledtr", "mover",
+    "munder", "munderover", "mmultiscripts", "mprescripts", "none", "mpadded", "mphantom",
+    "menclose", "merror", "mfenced", "semantics", "annotation", "maligngroup", "malignmark",
+}
+# Presentation attributes only; never links, styles or event handlers.
+_MATHML_DROP_ATTRS = re.compile(r"^(href|style|src|class|id|on.*|.*[:{].*)$", re.I)
+
+
+def _safe_mathml(mathml: str) -> str | None:
+    """latex2mathml passes \\text{...} through verbatim and turns \\href and
+    \\style into attributes, so a PDF could smuggle in <svg onload=...> or a
+    javascript: link.  Re-build the output from an allowlist; None if it holds
+    anything that isn't plain MathML."""
+    try:
+        root = ET.fromstring(mathml)
+    except ET.ParseError:
+        return None
+    for el in root.iter():
+        ns, _, tag = el.tag.rpartition("}")
+        if ns != "{" + _MATHML_NS or tag not in _MATHML_TAGS:
+            return None
+        for name in [a for a in el.attrib if _MATHML_DROP_ATTRS.match(a)]:
+            del el.attrib[name]
+    return ET.tostring(root, encoding="unicode", short_empty_elements=False)
+
+
 def _math(latex: str, options: dict) -> str:
     display = "block" if options.get("display_mode") else "inline"
     try:
-        mathml = latex2mathml.converter.convert(latex, display=display)
+        mathml = _safe_mathml(latex2mathml.converter.convert(latex, display=display))
     except Exception:
+        mathml = None
+    if mathml is None:
         mathml = f"<code>{html.escape(latex)}</code>"
     if display == "block":
         return f'<div class="scroll math">{mathml}</div>\n'
@@ -152,6 +185,10 @@ def _build_parser() -> MarkdownIt:
 
 _parser = _build_parser()
 
+# Engines name their images plainly ("figure-1.png"); anything else in an image
+# reference (remote URL, "/logout", "../x") came from the PDF's text.
+_LOCAL_IMAGE = re.compile(r"^\w[\w.-]*$")
+
 
 def render(markdown: str, image_url: Callable[[str], str] = lambda name: name) -> Rendered:
     """Render cleaned markdown.  ``image_url`` maps an engine image name to
@@ -173,8 +210,13 @@ def render(markdown: str, image_url: Callable[[str], str] = lambda name: name) -
             for child in tok.children or []:
                 if child.type == "image":
                     src = child.attrGet("src") or ""
-                    if not re.match(r"^(https?:|data:)", src):
+                    if _LOCAL_IMAGE.match(src):
                         child.attrSet("src", image_url(src))
+                    elif not src.startswith("data:image/"):
+                        # Show the alt text instead: loading it would tell a
+                        # remote server when the document is read.
+                        child.type, child.tag, child.attrs, child.children = "text", "", {}, None
+                        continue
                     child.attrSet("loading", "lazy")
 
     body = _parser.renderer.render(tokens, _parser.options, {})

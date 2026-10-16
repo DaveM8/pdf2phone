@@ -62,3 +62,21 @@ def test_flat_headings_nest_by_section_number():
 def test_already_nested_headings_are_left_alone():
     md = "# Title\n\n## 3.1 Part\n"
     assert [e.level for e in render(md).toc] == [1, 2]
+
+
+def test_maths_cannot_smuggle_in_markup_or_links():
+    # latex2mathml copies \text{} verbatim and turns \href/\style into attributes.
+    html = render("$\\text{<svg/onload=alert(1)>}$\n").html
+    assert "<svg" not in html and "&lt;svg/onload" in html  # falls back to escaped source
+    for md in ("$\\href{javascript:alert(1)}{x}$\n", "$$\n\\href{javascript:alert(1)}{x}\n$$\n",
+               "$\\style{color:red}{x}$\n"):
+        html = render(md).html
+        assert "<math" in html and "href" not in html and "style=" not in html, md
+    assert "<mfrac>" in render("$$\n\\frac{a}{b}\n$$\n").html  # ordinary maths unaffected
+
+
+def test_only_engine_images_are_loaded():
+    assert "<img" not in render("![tracker](https://example.com/p.png)\n").html
+    html = render("![out](/logout) ![up](../x.png)\n").html
+    assert "<img" not in html and "out" in html
+    assert '<img src="figure-1.png"' in render("![](figure-1.png)\n").html

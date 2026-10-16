@@ -33,6 +33,18 @@ PUBLIC_EXACT = {"/login", "/healthz", "/manifest.webmanifest", "/apple-touch-ico
 PUBLIC_PREFIX = ("/_static/",)
 DOC_ID = re.compile(r"^[\w-]{1,80}$")
 
+# Sent with every response.
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+}
+# Reader pages are built from PDF text, so no inline script may run there even
+# if something slips through the renderer.  They use only ../_static/reader.js.
+READER_CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+              "img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; "
+              "frame-ancestors 'none'")
+
 # Messages shown after a redirect; looked up by key so nothing user-supplied is echoed.
 FLASH = {
     "queued": "Converting your PDF. It will appear below when it's ready.",
@@ -80,7 +92,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return PlainTextResponse("Please log in.", status_code=401)
             return await call_next(request)
 
+    class SecurityHeaders(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            response = await call_next(request)
+            for k, v in SECURITY_HEADERS.items():
+                response.headers.setdefault(k, v)
+            return response
+
     app.add_middleware(RequireLogin)
+    app.add_middleware(SecurityHeaders)
     app.add_middleware(  # added last = runs first, so the session exists for RequireLogin
         SessionMiddleware,
         secret_key=settings.secret,
@@ -261,7 +281,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             target = target / "index.html"
         if not target.is_file():
             return PlainTextResponse("Not found", status_code=404)
-        headers = {"Cache-Control": "no-cache"} if target.suffix == ".html" else {}
+        headers = {}
+        if target.suffix == ".html":
+            headers["Cache-Control"] = "no-cache"
+            if target.parent != root:  # a document's reader page
+                headers["Content-Security-Policy"] = READER_CSP
         return FileResponse(target, headers=headers)
 
     return app

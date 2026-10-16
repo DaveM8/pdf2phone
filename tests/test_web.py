@@ -246,3 +246,15 @@ def test_logout_requires_login(tmp_path):
     r = client.get("/logout")
     assert r.status_code == 303 and r.headers["location"].startswith("/login?next=")
     assert "pdf2phone" not in client.cookies  # no known-device mark handed out
+
+
+def test_security_headers_and_reader_csp(logged_in):
+    client, app = logged_in
+    doc_id = converted_doc(client, app)
+    page = client.get(f"/{doc_id}/")
+    assert "script-src 'self'" in page.headers["content-security-policy"]
+    for r in (page, client.get("/"), client.get("/login")):
+        assert r.headers["x-content-type-options"] == "nosniff"
+        assert r.headers["x-frame-options"] == "DENY"
+    # The library page has its own inline script, so it must not get the reader CSP.
+    assert "content-security-policy" not in client.get("/").headers

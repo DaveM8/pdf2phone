@@ -46,6 +46,7 @@ Pipeline: `engines.extract(pdf, engine)` → `Document(markdown, title, images)`
 - The reader must stay readable **without JavaScript** (the iOS Files preview may not run scripts): CSS defaults are big text and OpenDyslexic, and JS only adds controls.
 - Reading position is stored per document as "block index + fraction" (`reader.js` `topBlock`/`restoreBlock`), not as a scroll percentage, so it survives text-size changes.
 - Settings and positions live in `localStorage` under the keys `pdf2phone:settings` and `pdf2phone:pos:<doc_id>`; the library page reads them.
+- PDF text is hostile input. `render._safe_mathml` rebuilds every formula from a MathML allowlist (latex2mathml copies `\text{}` verbatim and emits `\href`/`\style` attributes); only plain engine image names (`figure-1.png`) become `<img>`. Library reader pages are served with `READER_CSP` (`script-src 'self'`), so **never add inline `<script>` or `on…=` handlers to the library-mode reader** — put behaviour in `reader.js`.
 - `docling-math` is opt-in: formula recognition took minutes on a 12-page paper versus ~16 s without it. `compare` skips it unless it's named.
 - New web routes must be behind login, and new files under the library must be served through the path-checked catch-all.
 - Test fixture: `tests/fixtures/sample.pdf` (from markitdown's MIT test files). The `markitdown/` folder in the parent directory is an unrelated clone and is git-ignored.
