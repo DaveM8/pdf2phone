@@ -111,7 +111,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if wait:
             return login_page(f"Too many wrong tries. Try again in {wait // 60 + 1} minutes.", safe_next(next), 429)
 
-        known_device = request.session.get("dev") == 1  # signed: set only by a past successful login
+        # Signed, set only by a past successful login, and tied to the current
+        # password+secret: changing either revokes every known-device mark.
+        known_device = request.session.get("dev") == version
         if throttle.under_attack() and not known_device:
             # One unknown-device attempt at a time, each delayed: caps guessing
             # at ~1 per GLOBAL_DELAY_SECONDS overall without refusing anyone.
@@ -126,14 +128,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         throttle.succeed(ip)
         request.session.clear()
         request.session["v"] = version
-        request.session["dev"] = 1
+        request.session["dev"] = version
         return RedirectResponse(safe_next(next), status_code=303)
 
     @app.get("/logout")
     def logout(request: Request):
-        # Log out but remember this is a known device (skips the slow queue during attacks).
+        # Log out but remember this is a known device (skips the slow queue during
+        # attacks).  Only reachable when logged in: RequireLogin guards /logout.
         request.session.clear()
-        request.session["dev"] = 1
+        request.session["dev"] = version
         return RedirectResponse("/login", status_code=303)
 
     @app.get("/healthz")

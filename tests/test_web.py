@@ -217,3 +217,32 @@ def test_settings_reject_weak_or_example_password(monkeypatch):
             Settings.from_env()
     monkeypatch.setenv("PDF2PHONE_PASSWORD", "harbour pencil violet gravy")
     assert Settings.from_env().password == "harbour pencil violet gravy"
+
+
+def test_known_device_mark_is_revoked_by_password_change(tmp_path, monkeypatch):
+    from pdf2phone.web import app as app_module, auth
+
+    client, _ = make_client(tmp_path)
+    login(client)
+    client.get("/logout")
+    old_cookie = client.cookies.get("pdf2phone")
+
+    # Same library, new password; an attack is under way.
+    client2, app2 = make_client(tmp_path, password="a brand new password")
+    _flood(app2.state.throttle, auth.GLOBAL_MAX_FAILURES)
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(app_module.asyncio, "sleep", fake_sleep)
+    client2.cookies.set("pdf2phone", old_cookie)
+    login(client2, "a brand new password")
+    assert slept == [auth.GLOBAL_DELAY_SECONDS]  # old mark no longer skips the queue
+
+
+def test_logout_requires_login(tmp_path):
+    client, _ = make_client(tmp_path)
+    r = client.get("/logout")
+    assert r.status_code == 303 and r.headers["location"].startswith("/login?next=")
+    assert "pdf2phone" not in client.cookies  # no known-device mark handed out
