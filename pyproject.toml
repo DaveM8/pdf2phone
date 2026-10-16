@@ -1,0 +1,38 @@
+[project]
+name = "pdf2phone"
+version = "0.1.0"
+description = "Turn PDFs into large-print, dyslexia-friendly HTML for reading on a phone"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "pymupdf4llm>=0.0.17",
+  "markdown-it-py>=3.0",
+  "mdit-py-plugins>=0.4",
+  "jinja2>=3.1",
+  "latex2mathml>=3.77",
+]
+
+[project.optional-dependencies]
+docling = ["docling>=2.0"]
+markitdown = ["markitdown[pdf]"]
+web = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "python-multipart>=0.0.9",
+  "itsdangerous>=2.1",
+]
+
+[project.scripts]
+pdf2phone = "pdf2phone.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pdf2phone"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" data-theme="cream" data-font="dyslexic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="pdf2phone-doc" content="{{ doc_id }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>{{ title }}</title>
+{% if inline %}<style>{{ css | safe }}</style>{% else %}<link rel="stylesheet" href="{{ static }}/reader.css">{% endif %}
+</head>
+<body>
+<div id="progress" aria-hidden="true"><div></div></div>
+
+<header class="doc-head">
+  {% if library_url %}<a class="back" href="{{ library_url }}">‹ Library</a>{% endif %}
+  <span class="doc-title">{{ title }}</span>
+</header>
+
+{% if toc %}
+<details class="toc" id="toc">
+  <summary>Contents</summary>
+  <nav><ol>
+  {% for e in toc %}<li class="lvl{{ e.level if e.level < 4 else 4 }}"><a href="#{{ e.anchor }}">{{ e.text }}</a></li>
+  {% endfor %}</ol></nav>
+</details>
+{% endif %}
+
+<article id="doc">
+{{ body | safe }}
+</article>
+
+<footer class="doc-foot">Converted from {{ source_name }} with {{ engine }}.</footer>
+
+<div class="fab" id="fab" hidden>
+  {% if toc %}<button type="button" data-open="toc-panel" aria-label="Contents">☰</button>{% endif %}
+  <button type="button" data-open="settings" aria-label="Reading settings">Aa</button>
+</div>
+
+<div class="panel" id="toc-panel" hidden role="dialog" aria-label="Contents">
+  <div class="panel-head"><strong>Contents</strong><button type="button" data-close aria-label="Close">✕</button></div>
+  <div class="panel-body" id="toc-panel-body"></div>
+</div>
+
+<div class="panel" id="settings" hidden role="dialog" aria-label="Reading settings">
+  <div class="panel-head"><strong>Reading settings</strong><button type="button" data-close aria-label="Close">✕</button></div>
+  <div class="panel-body">
+    <div class="row"><span>Text size</span>
+      <span class="stepper"><button type="button" data-step="size:-1" aria-label="Smaller text">A−</button><output data-show="size"></output><button type="button" data-step="size:1" aria-label="Bigger text">A+</button></span></div>
+    <div class="row"><span>Side margin</span>
+      <span class="stepper"><button type="button" data-step="gutter:-1">−</button><output data-show="gutter"></output><button type="button" data-step="gutter:1">+</button></span></div>
+    <fieldset class="choices" data-choice="font"><legend>Font</legend>
+      <button type="button" data-value="dyslexic" class="f-dyslexic">OpenDyslexic</button>
+      <button type="button" data-value="atkinson" class="f-atkinson">Atkinson</button>
+      <button type="button" data-value="lexend" class="f-lexend">Lexend</button>
+      <button type="button" data-value="system" class="f-system">System</button>
+    </fieldset>
+    <fieldset class="choices" data-choice="theme"><legend>Colours</legend>
+      <button type="button" data-value="cream">Cream</button>
+      <button type="button" data-value="white">White</button>
+      <button type="button" data-value="dark">Dark</button>
+      <button type="button" data-value="auto">Auto</button>
+    </fieldset>
+    <details class="more"><summary>Spacing</summary>
+      <div class="row"><span>Line spacing</span>
+        <span class="stepper"><button type="button" data-step="lh:-1">−</button><output data-show="lh"></output><button type="button" data-step="lh:1">+</button></span></div>
+      <div class="row"><span>Word spacing</span>
+        <span class="stepper"><button type="button" data-step="ws:-1">−</button><output data-show="ws"></output><button type="button" data-step="ws:1">+</button></span></div>
+      <div class="row"><span>Letter spacing</span>
+        <span class="stepper"><button type="button" data-step="ls:-1">−</button><output data-show="ls"></output><button type="button" data-step="ls:1">+</button></span></div>
+      <div class="row"><span>Max line width<br><small>(wide screens only)</small></span>
+        <span class="stepper"><button type="button" data-step="measure:-1">−</button><output data-show="measure"></output><button type="button" data-step="measure:1">+</button></span></div>
+    </details>
+    <button type="button" class="reset" data-reset>Reset to defaults</button>
+  </div>
+</div>
+
+{% if inline %}<script>{{ js | safe }}</script>{% else %}<script src="{{ static }}/reader.js"></script>{% endif %}
+</body>
+</html>

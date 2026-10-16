@@ -1,0 +1,11 @@
+.venv
+.git
+markitdown
+**/__pycache__
+.pytest_cache
+*.html
+!src/**/*.html
+library
+.env
+compare-*
+docs

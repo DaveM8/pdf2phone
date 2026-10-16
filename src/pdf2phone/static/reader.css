@@ -1,0 +1,178 @@
+/* pdf2phone reader.
+ *
+ * Rule of this file: anything HORIZONTAL around the text (page gutter, list
+ * and quote indents, table cell padding) is in px, never em/rem.  Text size
+ * changes therefore never eat into words-per-line.  Vertical spacing may use
+ * em, which costs nothing horizontally.
+ */
+
+@font-face { font-family: "OpenDyslexic"; src: url("fonts/OpenDyslexic-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "OpenDyslexic"; src: url("fonts/OpenDyslexic-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "OpenDyslexic"; src: url("fonts/OpenDyslexic-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "OpenDyslexic"; src: url("fonts/OpenDyslexic-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fonts/AtkinsonHyperlegible-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fonts/AtkinsonHyperlegible-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fonts/AtkinsonHyperlegible-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Lexend"; src: url("fonts/Lexend-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Lexend"; src: url("fonts/Lexend-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+
+:root {
+  /* Defaults = the no-JavaScript experience (e.g. iOS Files preview). */
+  --size: 24px;        /* reading text size */
+  --gutter: 10px;      /* left/right page margin - fixed, independent of --size */
+  --lh: 1.5;           /* line height */
+  --ws: 0em;           /* extra word spacing */
+  --ls: 0em;           /* extra letter spacing */
+  --measure: 900px;    /* max line width, only applied on wide screens */
+  --ui: 18px;          /* size of buttons/panels, independent of reading size */
+
+  --bg: #fbf5e6; --fg: #1d1b18; --muted: #6b6457; --link: #0b55a8;
+  --rule: #e2d8c0; --panel: #fffaf0; --code-bg: #f1e8d2; --accent: #c2410c;
+
+  --font: "OpenDyslexic", "Atkinson Hyperlegible", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+:root[data-theme="white"] { --bg: #ffffff; --fg: #111111; --muted: #5d5d5d; --link: #0b55a8; --rule: #e3e3e3; --panel: #ffffff; --code-bg: #f2f2f2; --accent: #c2410c; }
+:root[data-theme="dark"]  { --bg: #18181a; --fg: #e9e6df; --muted: #a29d93; --link: #8cc2ff; --rule: #34343a; --panel: #232327; --code-bg: #2a2a2f; --accent: #fb923c; }
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] { --bg: #18181a; --fg: #e9e6df; --muted: #a29d93; --link: #8cc2ff; --rule: #34343a; --panel: #232327; --code-bg: #2a2a2f; --accent: #fb923c; }
+}
+:root[data-font="atkinson"] { --font: "Atkinson Hyperlegible", system-ui, sans-serif; }
+:root[data-font="lexend"]   { --font: "Lexend", system-ui, sans-serif; }
+:root[data-font="system"]   { --font: -apple-system, system-ui, "Segoe UI", sans-serif; }
+
+* { box-sizing: border-box; }
+html { background: var(--bg); color: var(--fg); font-size: var(--ui); }
+body {
+  margin: 0;
+  padding: 0 max(var(--gutter), env(safe-area-inset-right)) 120px max(var(--gutter), env(safe-area-inset-left));
+  background: var(--bg);
+  font-family: var(--font);
+}
+
+/* ------------------------------------------------------------ the text */
+article, .doc-head, .toc, .doc-foot { max-width: none; margin-left: auto; margin-right: auto; }
+@media (min-width: 760px) {
+  article, .doc-head, .toc, .doc-foot { max-width: var(--measure); }
+}
+article {
+  font-size: var(--size);
+  line-height: var(--lh);
+  word-spacing: var(--ws);
+  letter-spacing: var(--ls);
+  text-align: left;
+  hyphens: manual;
+  -webkit-hyphens: manual;
+}
+article p, article li, article td, article th, article a, article blockquote,
+article h1, article h2, article h3, article h4, article h5, article h6 { overflow-wrap: anywhere; }
+article p { margin: 0 0 0.9em; }
+
+article h1, article h2, article h3, article h4, article h5, article h6 {
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
+  font-weight: 700;
+  scroll-margin-top: 12px;
+}
+/* Headings grow only a little: at big reading sizes, huge headings just wrap. */
+article h1 { font-size: 1.35em; }
+article h2 { font-size: 1.2em; }
+article h3 { font-size: 1.1em; }
+article h4, article h5, article h6 { font-size: 1em; }
+
+article a { color: var(--link); text-underline-offset: 3px; }
+
+/* Lists: markers sit inside the text column so they take no indent;
+   nesting adds a small FIXED px step. */
+article ul, article ol { margin: 0 0 0.9em; padding-left: 0; list-style-position: inside; }
+article li { margin: 0 0 0.35em; }
+article li > ul, article li > ol { padding-left: 14px; margin: 0.35em 0 0; }
+article li > p { display: inline; }
+
+article blockquote {
+  margin: 0 0 0.9em; padding: 0 0 0 10px;
+  border-left: 4px solid var(--rule); color: var(--muted);
+}
+
+article img { display: block; max-width: 100%; height: auto; margin: 0.6em auto; border-radius: 4px; background: #fff; }
+
+article code { font-size: 0.85em; background: var(--code-bg); padding: 0 3px; border-radius: 3px; }
+article pre { background: var(--code-bg); padding: 8px; border-radius: 6px; font-size: 0.75em;
+  white-space: pre-wrap; overflow-wrap: anywhere; }  /* wrap, don't scroll sideways */
+article pre code { background: none; padding: 0; }
+article hr { border: 0; border-top: 2px solid var(--rule); margin: 1.5em 0; }
+
+/* Wide things scroll sideways on their own; the page never does. */
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 0 1em; max-width: 100%; }
+article table { border-collapse: collapse; font-size: 0.8em; line-height: 1.35; }
+article th, article td { border: 1px solid var(--rule); padding: 4px 6px; vertical-align: top; text-align: left; min-width: 4ch; }
+article th { background: var(--code-bg); }
+.math { text-align: center; padding: 4px 0; }
+math { font-size: 1.05em; }
+
+.footnotes { font-size: 0.85em; color: var(--muted); }
+.footnotes ol { list-style-position: outside; padding-left: 20px; }
+
+/* ------------------------------------------------------------ chrome */
+#progress { position: fixed; top: 0; left: 0; right: 0; height: 5px; z-index: 30; background: transparent; }
+#progress > div { height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+
+.doc-head { display: flex; gap: 12px; align-items: baseline; padding: 14px 0 8px; color: var(--muted); font-size: 0.85rem; }
+.doc-head .back { color: var(--link); text-decoration: none; white-space: nowrap; }
+.doc-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-foot { color: var(--muted); font-size: 0.75rem; margin-top: 3em; }
+
+.toc { border: 2px solid var(--rule); border-radius: 10px; padding: 6px 12px; margin-bottom: 1.2em; }
+.toc summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.toc ol, #toc-panel ol { list-style: none; padding: 0; margin: 4px 0 8px; }
+.toc li, #toc-panel li { margin: 0; }
+.toc a, #toc-panel a { display: block; padding: 7px 0; color: var(--link); text-decoration: none; line-height: 1.3; border-bottom: 1px solid var(--rule); }
+.lvl2 a { padding-left: 14px !important; }
+.lvl3 a { padding-left: 28px !important; font-size: 0.92em; }
+.lvl4 a { padding-left: 42px !important; font-size: 0.88em; }
+#toc-panel a.here { font-weight: 700; color: var(--fg); }
+
+.fab { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; z-index: 20; }
+.fab button {
+  width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--rule);
+  background: var(--panel); color: var(--fg); font: 700 20px/1 var(--font);
+  box-shadow: 0 2px 10px rgba(0,0,0,.18); cursor: pointer;
+}
+
+.panel {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  max-height: 85vh; display: flex; flex-direction: column;
+  background: var(--panel); color: var(--fg); font-family: var(--font);
+  border-top: 2px solid var(--rule); border-radius: 16px 16px 0 0;
+  box-shadow: 0 -6px 30px rgba(0,0,0,.25);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.panel[hidden] { display: none; }
+@media (min-width: 760px) { .panel { left: auto; right: 16px; bottom: 16px; width: 420px; border-radius: 16px; border: 2px solid var(--rule); } }
+.panel-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+.panel-head button { border: 0; background: none; color: var(--fg); font-size: 22px; width: 44px; height: 44px; cursor: pointer; }
+.panel-body { overflow-y: auto; padding: 8px 16px 16px; }
+
+.row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.row small { color: var(--muted); font-size: 0.75em; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper output { min-width: 3.6em; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper button, .choices button, .reset {
+  min-width: 48px; min-height: 48px; padding: 0 10px; border-radius: 10px;
+  border: 2px solid var(--rule); background: var(--bg); color: var(--fg);
+  font: 700 18px/1 var(--font); cursor: pointer;
+}
+.choices { border: 0; padding: 8px 0; margin: 0; border-bottom: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 8px; }
+.choices legend { padding: 0 0 6px; }
+.choices button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.f-dyslexic { font-family: "OpenDyslexic", sans-serif !important; }
+.f-atkinson { font-family: "Atkinson Hyperlegible", sans-serif !important; }
+.f-lexend   { font-family: "Lexend", sans-serif !important; }
+.f-system   { font-family: -apple-system, system-ui, sans-serif !important; }
+.more summary { padding: 12px 0; cursor: pointer; font-weight: 700; }
+.reset { width: 100%; margin-top: 14px; }
+
+@media print {
+  .fab, .panel, #progress, .toc { display: none !important; }
+}

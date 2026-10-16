@@ -1,0 +1,16 @@
+services:
+  pdf2phone:
+    build: .
+    image: pdf2phone:latest
+    container_name: pdf2phone
+    restart: unless-stopped
+    env_file: .env
+    # Only reachable from the server itself; nginx forwards the public site to it.
+    ports:
+      - "127.0.0.1:${PDF2PHONE_PORT:-8090}:8000"
+    volumes:
+      - library:/data/library
+    mem_limit: 5g
+
+volumes:
+  library:
