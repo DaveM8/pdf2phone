@@ -220,7 +220,7 @@ Press **Ctrl+C** to stop watching. The app keeps running.
 
 **A conversion says "Failed".** Open the ⋯ menu on the document and choose **Convert again** with a different converter. The logs show the full error.
 
-**Out of memory, or the app restarts during a Docling conversion.** In `.env`, set `PDF2PHONE_DEFAULT_ENGINE=pymupdf`, then run `docker compose up -d`. Use Docling only when Fast gets a document wrong. You can also lower `mem_limit` in `docker-compose.yml` to protect your other sites. A conversion that hits the limit then fails on its own instead of slowing the whole server.
+**Out of memory, or the app restarts during a Docling conversion.** In `.env`, set `PDF2PHONE_DEFAULT_ENGINE=pymupdf`, then run `docker compose up -d`. Use Docling only when Fast gets a document wrong. You can also set `PDF2PHONE_WORKERS=1` and a lower `PDF2PHONE_MEM_LIMIT` (e.g. `5g`) in `.env` to protect your other sites. A conversion that hits the limit then fails on its own instead of slowing the whole server.
 
 **The build fails while installing torch.** On some processor types the CPU-only PyTorch download can be missing. In the `Dockerfile`, delete the `--index-url https://download.pytorch.org/whl/cpu` part of the `torch` line and build again. The image will be bigger, but it will work.
 

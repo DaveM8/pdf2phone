@@ -10,7 +10,9 @@ services:
       - "127.0.0.1:${PDF2PHONE_PORT:-8090}:8000"
     volumes:
       - library:/data/library
-    mem_limit: 5g
+    # About 4 GB per conversion that can run at once (PDF2PHONE_WORKERS, default 3),
+    # plus room for the web app.  Set PDF2PHONE_MEM_LIMIT in .env to change it.
+    mem_limit: ${PDF2PHONE_MEM_LIMIT:-14g}
 
 volumes:
   library:

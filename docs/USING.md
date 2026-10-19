@@ -17,7 +17,7 @@
    - **Careful + equations (slow)**: several minutes. Only for papers with a lot of maths.
 3. Tap **Convert**.
 
-You can leave the page while it converts. When you come back, the document is at the top of the list. One PDF is converted at a time, so if you add several, they wait in a queue.
+You can leave the page while it converts. When you come back, the document is at the top of the list. A few PDFs are converted at the same time. If more are waiting, people take turns, so someone else's pile of uploads won't hold yours up for long.
 
 ## Reading
 

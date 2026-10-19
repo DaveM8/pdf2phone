@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .. import engines
+from .jobs import DEFAULT_WORKERS, MAX_WORKERS
 from .users import EMAIL, MIN_PASSWORD_LENGTH, normalise_email
 
 EXAMPLE_PASSWORD = "change-me-to-something-long"
@@ -42,6 +43,8 @@ class Settings:
     # Keys the email hash in deletion records.  Kept apart from the database
     # (and from the secret, which may be changed to log everyone out).
     record_key: str = ""
+    # Conversions that may run at once (each Docling one needs ~3 GB).
+    workers: int = DEFAULT_WORKERS
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -78,6 +81,9 @@ class Settings:
         engine = os.environ.get("PDF2PHONE_DEFAULT_ENGINE", engines.DEFAULT_ENGINE)
         if engine not in engines.ENGINES:
             raise RuntimeError(f"PDF2PHONE_DEFAULT_ENGINE must be one of {', '.join(engines.ENGINES)}")
+        workers = os.environ.get("PDF2PHONE_WORKERS", str(DEFAULT_WORKERS)).strip()
+        if not workers.isdigit() or not 1 <= int(workers) <= MAX_WORKERS:
+            raise RuntimeError(f"PDF2PHONE_WORKERS must be a number from 1 to {MAX_WORKERS}")
         return cls(
             secret=secret,
             library=Path(os.environ.get("PDF2PHONE_LIBRARY", "/data/library")),
@@ -93,4 +99,5 @@ class Settings:
             mail_from=mail["PDF2PHONE_MAIL_FROM"],
             public_url=public_url,
             record_key=record_key,
+            workers=int(workers),
         )

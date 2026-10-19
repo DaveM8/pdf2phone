@@ -13,6 +13,7 @@ document route works only inside that user's own folder (<lib>/_users/<id>/).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import logging
@@ -108,7 +109,7 @@ def create_app(settings: Settings | None = None, mailer: Mailer | None = None) -
     if admin.needs_password and not settings.password:
         raise RuntimeError("The admin account has no password yet. Set PDF2PHONE_PASSWORD for the first login.")
     users.erase_expired_signups()
-    queue = JobQueue(lib, users.root)
+    queue = JobQueue(lib, users.root, workers=settings.workers)
     throttle = Throttle()
     signup_limit = RateLimit(SIGNUPS_PER_HOUR, 3600)
     reset_limit = RateLimit(RESETS_PER_HOUR, 3600)          # by address asking
@@ -135,7 +136,12 @@ def create_app(settings: Settings | None = None, mailer: Mailer | None = None) -
     default_engine = settings.default_engine if settings.default_engine in available else available[0]
     static_root = Path(str(page.static_files()))
 
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    @contextlib.asynccontextmanager
+    async def lifespan(app):
+        yield
+        queue.close()  # stop the converter processes with the app
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.queue = queue  # tests use these
     app.state.throttle = throttle
     app.state.users = users

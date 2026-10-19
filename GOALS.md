@@ -50,7 +50,7 @@ In scope beyond the criteria above: a forgot-password email.
 ## Constraints
 
 - Runs on the owner's Hetzner Ubuntu server, which also hosts other sites. Docker behind the existing nginx; app on 127.0.0.1:8090.
-- One conversion at a time (Docling uses ~3 GB of memory); the queue is shared by all users.
+- Up to 3 conversions at a time (PDF2PHONE_WORKERS; changed from one at a time on 2026-10-19 at the owner's request, since the server has 64 GB and a 4-core Xeon E3-1275 v6). Each runs in its own process; users take turns; container memory limit 14 GB.
 - Email goes out through Brevo's free plan (EU-based; 300 emails a day; free emails carry Brevo branding), from an address on the owner's own domain authenticated with Brevo's DNS records. SMTP settings (smtp-relay.brevo.com, port 587, STARTTLS, SMTP key) live in .env, so another service can replace it later without code changes. Port 587 isn't blocked by Hetzner.
 - A few minutes of downtime during deployment is fine.
 - No deadline: ship when it's right.
