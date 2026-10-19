@@ -1,8 +1,9 @@
 """Background conversion queue.
 
-One worker thread: Docling can use ~3 GB of memory, so conversions run one
-at a time.  Job records are also written to <library>/_jobs/ so the page can
-show what happened after an app restart.
+One worker thread, shared by all users: Docling can use ~3 GB of memory, so
+conversions run one at a time.  Job records are also written to
+<library>/_jobs/ so the page can show what happened after an app restart.
+Every job belongs to one user and is only ever shown to that user.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Callable
 
 from .. import engines, library
 
@@ -40,6 +42,7 @@ class Job:
     source_name: str
     engine: str
     upload: str | None  # temp file for new uploads; None when re-converting
+    user_id: int = 0
     state: str = "queued"
     error: str = ""
     created: float = 0.0
@@ -53,8 +56,9 @@ class Job:
 
 
 class JobQueue:
-    def __init__(self, library_dir: Path):
+    def __init__(self, library_dir: Path, root_for: Callable[[int], Path]):
         self.library = library_dir
+        self.root_for = root_for  # user id -> that user's library folder
         self.dir = library_dir / "_jobs"
         (self.dir / "uploads").mkdir(parents=True, exist_ok=True)
         self.jobs: dict[str, Job] = {}
@@ -87,24 +91,34 @@ class JobQueue:
     def upload_path(self) -> Path:
         return self.dir / "uploads" / f"{secrets.token_hex(8)}.pdf"
 
-    def submit(self, *, doc_id: str, source_name: str, engine: str, upload: Path | None) -> Job:
+    def submit(self, *, user_id: int, doc_id: str, source_name: str, engine: str, upload: Path | None) -> Job:
         job = Job(id=secrets.token_hex(6), doc_id=doc_id, source_name=source_name, engine=engine,
-                  upload=str(upload) if upload else None, created=time.time())
+                  upload=str(upload) if upload else None, user_id=user_id, created=time.time())
         with self._lock:
             self.jobs[job.id] = job
             self._save(job)
         self._pool.submit(self._run, job)
         return job
 
-    def busy(self) -> bool:
-        return any(j.state in ("queued", "running") for j in self.jobs.values())
+    def busy(self, user_id: int | None = None) -> bool:
+        """Any unfinished job (for ``user_id`` only, if given)."""
+        return any(j.state in ("queued", "running") and (user_id is None or j.user_id == user_id)
+                   for j in self.jobs.values())
 
-    def recent(self) -> list[Job]:
-        """What the library page shows: anything unfinished, failures from the
-        last day, and successes from the last 2 minutes."""
+    def doc_busy(self, user_id: int, doc_id: str) -> bool:
+        return any(j.user_id == user_id and j.doc_id == doc_id and j.state in ("queued", "running")
+                   for j in self.jobs.values())
+
+    def recent(self, user_id: int) -> list[Job]:
+        """What ``user_id``'s library page shows: their unfinished jobs, failures
+        from the last day, and successes from the last 2 minutes."""
         now = time.time()
         keep = [
             j for j in self.jobs.values()
+            if j.user_id == user_id
+        ]
+        keep = [
+            j for j in keep
             if j.state in ("queued", "running")
             or (j.state in ("failed", "interrupted") and now - j.finished < 86400)
             or (j.state == "done" and now - j.finished < 120)
@@ -120,11 +134,14 @@ class JobQueue:
     # ------------------------------------------------------------ worker
     def _run(self, job: Job) -> None:
         self._set(job, state="running")
-        pdf = Path(job.upload) if job.upload else self.library / job.doc_id / "source.pdf"
+        root = self.root_for(job.user_id)
+        pdf = Path(job.upload) if job.upload else root / job.doc_id / "source.pdf"
         try:
+            if not job.user_id:
+                raise RuntimeError("job has no owner")
             doc = engines.extract(pdf, job.engine)
-            library.add(self.library, doc, pdf, doc_id=job.doc_id,
-                        source_name=job.source_name, write_idx=False)
+            library.add(root, doc, pdf, doc_id=job.doc_id, source_name=job.source_name,
+                        write_idx=False, static=False)
             self._set(job, state="done", finished=time.time())
         except Exception as e:
             traceback.print_exc()

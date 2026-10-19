@@ -1,0 +1,20 @@
+# Rehearse the accounts upgrade on a COPY of your library, next to the real app.
+# See docs/UPGRADE-ACCOUNTS.md. Uses the image built by the main docker-compose.yml.
+name: pdf2phone-rehearsal
+
+services:
+  rehearsal:
+    image: pdf2phone:latest
+    env_file: ../.env
+    environment:
+      PDF2PHONE_INSECURE_COOKIES: "1"   # reached over an SSH tunnel as plain http://localhost
+    ports:
+      - "127.0.0.1:8091:8000"
+    volumes:
+      - rehearsal:/data/library
+    mem_limit: 5g
+
+volumes:
+  rehearsal:
+    external: true
+    name: pdf2phone_rehearsal

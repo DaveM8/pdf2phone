@@ -32,8 +32,9 @@ _env = Environment(
 
 
 # Top-level names the web app uses for itself; never used as document ids.
-RESERVED = {"_static", "_jobs", "login", "logout", "api", "d", "upload", "healthz",
-            "manifest.webmanifest", "apple-touch-icon.png", "index.html"}
+RESERVED = {"_static", "_jobs", "_users", "_db", "_backups", "login", "logout", "account",
+            "admin", "signup", "api", "d", "upload", "healthz",
+            "manifest.webmanifest", "apple-touch-icon.png", "icon-512.png", "index.html"}
 
 
 def slugify(name: str) -> str:
@@ -56,13 +57,15 @@ def ensure_static(library: Path) -> None:
 
 
 def add(library: Path, doc: Document, source: Path, doc_id: str | None = None,
-        source_name: str | None = None, write_idx: bool = True) -> Path:
+        source_name: str | None = None, write_idx: bool = True, static: bool = True) -> Path:
     """Write ``doc`` into the library; returns the doc's index.html path.
 
     Re-adding an existing ``doc_id`` replaces the old version but keeps its
-    ``source.pdf`` and original "added" date."""
+    ``source.pdf`` and original "added" date.  ``static=False`` skips copying
+    the shared CSS/fonts (the web app keeps one shared copy for all users)."""
     library.mkdir(parents=True, exist_ok=True)
-    ensure_static(library)
+    if static:
+        ensure_static(library)
     doc_id = doc_id or slugify(source.stem)
     source_name = source_name or source.name
     folder = library / doc_id

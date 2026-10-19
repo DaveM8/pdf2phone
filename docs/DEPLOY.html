@@ -200,7 +200,7 @@ math { font-size: 1.05em; }
 <li class="lvl2"><a href="#2-check-what-the-server-is-running">2. Check what the server is running</a></li>
 <li class="lvl2"><a href="#3-install-docker-skip-if-docker---version-already-works">3. Install Docker (skip if docker --version already works)</a></li>
 <li class="lvl2"><a href="#4-copy-the-project-to-the-server">4. Copy the project to the server</a></li>
-<li class="lvl2"><a href="#5-set-your-password">5. Set your password</a></li>
+<li class="lvl2"><a href="#5-set-your-admin-email-and-first-password">5. Set your admin email and first password</a></li>
 <li class="lvl2"><a href="#6-build-and-start-the-app">6. Build and start the app</a></li>
 <li class="lvl2"><a href="#7-connect-it-to-nginx-and-add-https">7. Connect it to nginx and add HTTPS</a></li>
 <li class="lvl3"><a href="#7b-if-the-server-uses-something-other-than-nginx">7b. If the server uses something other than nginx</a></li>
@@ -214,6 +214,7 @@ math { font-size: 1.05em; }
 
 <article id="doc">
 <h1 id="putting-pdf2phone-on-your-hetzner-server">Putting pdf2phone on your Hetzner server</h1>
+<p><strong>Already running the older single-password version?</strong> Follow <code>docs/UPGRADE-ACCOUNTS.md</code> instead of this guide.</p>
 <p>This guide assumes:</p>
 <ul>
 <li>your server runs <strong>Ubuntu</strong>,</li>
@@ -274,7 +275,7 @@ server$ sudo usermod -aG docker $USER
 <pre><code>mac$ rsync -av --exclude .venv --exclude markitdown --exclude .git --exclude '*.html' ~/pdf2phone/ you@your-server:~/pdf2phone/
 </code></pre>
 <p>The <code>'*.html'</code> exclusion only skips generated pages such as the summary. The templates the app needs end in <code>.j2</code>, so they're still copied.</p>
-<h2 id="5-set-your-password">5. Set your password</h2>
+<h2 id="5-set-your-admin-email-and-first-password">5. Set your admin email and first password</h2>
 <pre><code>server$ cd ~/pdf2phone
 server$ cp .env.example .env
 server$ python3 -c 'import secrets; print(secrets.token_hex(32))'
@@ -282,7 +283,8 @@ server$ nano .env
 </code></pre>
 <p>In <code>nano</code>:</p>
 <ul>
-<li>set <code>PDF2PHONE_PASSWORD</code> to the password you want to log in with: <strong>at least 12 characters</strong>. A few random words, such as <code>harbour pencil violet gravy</code>, are strong and easy to type,</li>
+<li>set <code>PDF2PHONE_ADMIN_EMAIL</code> to your email address: that's your admin login,</li>
+<li>set <code>PDF2PHONE_PASSWORD</code> to a password for your <strong>first login only</strong>: <strong>at least 12 characters</strong>. Straight after logging in you choose your own password, and this one stops working,</li>
 <li>paste the long random line printed above after <code>PDF2PHONE_SECRET=</code>,</li>
 <li>save with <strong>Ctrl+O</strong>, <strong>Enter</strong>, then exit with <strong>Ctrl+X</strong>.</li>
 </ul>
@@ -339,7 +341,7 @@ server$ sudo systemctl reload nginx
 </code></pre>
 <h2 id="8-use-it-from-your-phone">8. Use it from your phone</h2>
 <ol>
-<li>Open <code>https://read.example.com</code> in <strong>Safari</strong> and log in.</li>
+<li>Open <code>https://read.example.com</code> in <strong>Safari</strong> and log in with your email and the first-login password. You're then asked to choose your own password. After that, you can delete the <code>PDF2PHONE_PASSWORD</code> line from <code>.env</code>.</li>
 <li>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>. You get an &quot;Aa&quot; icon that opens the library like an app.</li>
 <li>Read <code>docs/USING.md</code> (or <code>docs/USING.html</code>) for everyday use.</li>
 </ol>
@@ -365,7 +367,9 @@ mac$ scp you@your-server:~/pdf2phone-backup.tgz ~/Desktop/
 <p><strong>A conversion says &quot;Failed&quot;.</strong> Open the ⋯ menu on the document and choose <strong>Convert again</strong> with a different converter. The logs show the full error.</p>
 <p><strong>Out of memory, or the app restarts during a Docling conversion.</strong> In <code>.env</code>, set <code>PDF2PHONE_DEFAULT_ENGINE=pymupdf</code>, then run <code>docker compose up -d</code>. Use Docling only when Fast gets a document wrong. You can also lower <code>mem_limit</code> in <code>docker-compose.yml</code> to protect your other sites. A conversion that hits the limit then fails on its own instead of slowing the whole server.</p>
 <p><strong>The build fails while installing torch.</strong> On some processor types the CPU-only PyTorch download can be missing. In the <code>Dockerfile</code>, delete the <code>--index-url https://download.pytorch.org/whl/cpu</code> part of the <code>torch</code> line and build again. The image will be bigger, but it will work.</p>
-<p><strong>Forgot the password.</strong> Edit <code>.env</code>, then run <code>docker compose up -d</code>. Changing the password logs out every device.</p>
+<p><strong>Forgot your password.</strong> Run this, then type a new password twice (nothing is shown as you type). It also logs that account out on every device:</p>
+<pre><code>server$ cd ~/pdf2phone &amp;&amp; docker compose exec pdf2phone pdf2phone set-password you@example.com
+</code></pre>
 
 </article>
 

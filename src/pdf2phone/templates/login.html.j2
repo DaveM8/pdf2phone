@@ -13,7 +13,7 @@
   main { max-width: 480px; margin: 12vh auto 0; font-size: 22px; }
   h1 { font-size: 30px; margin: 0 0 16px; }
   label { display: block; margin-bottom: 8px; }
-  input[type=password] { width: 100%; min-height: 56px; font: 22px var(--font); padding: 0 12px;
+  input[type=password], input[type=email] { width: 100%; min-height: 56px; font: 22px var(--font); padding: 0 12px;
     border: 2px solid var(--rule); border-radius: 12px; background: var(--panel); color: var(--fg); }
   button { width: 100%; min-height: 56px; margin-top: 14px; border-radius: 12px; border: 0;
     background: var(--accent); color: #fff; font: 700 22px var(--font); cursor: pointer; }
@@ -26,8 +26,11 @@
   {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
   <form method="post" action="/login">
     <input type="hidden" name="next" value="{{ next }}">
-    <label for="pw">Password</label>
-    <input id="pw" type="password" name="password" autocomplete="current-password" autofocus required>
+    <label for="email">Email</label>
+    <input id="email" type="email" name="email" value="{{ email }}" autocomplete="username" autocapitalize="none"
+           spellcheck="false" {% if not email %}autofocus{% endif %} required>
+    <label for="pw" style="margin-top:14px">Password</label>
+    <input id="pw" type="password" name="password" autocomplete="current-password" {% if email %}autofocus{% endif %} required>
     <button type="submit">Log in</button>
   </form>
 </main>

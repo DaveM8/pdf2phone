@@ -1,5 +1,7 @@
 # Putting pdf2phone on your Hetzner server
 
+**Already running the older single-password version?** Follow `docs/UPGRADE-ACCOUNTS.md` instead of this guide.
+
 This guide assumes:
 
 - your server runs **Ubuntu**,
@@ -74,7 +76,7 @@ mac$ rsync -av --exclude .venv --exclude markitdown --exclude .git --exclude '*.
 
 The `'*.html'` exclusion only skips generated pages such as the summary. The templates the app needs end in `.j2`, so they're still copied.
 
-## 5. Set your password
+## 5. Set your admin email and first password
 
 ```
 server$ cd ~/pdf2phone
@@ -85,7 +87,8 @@ server$ nano .env
 
 In `nano`:
 
-- set `PDF2PHONE_PASSWORD` to the password you want to log in with: **at least 12 characters**. A few random words, such as `harbour pencil violet gravy`, are strong and easy to type,
+- set `PDF2PHONE_ADMIN_EMAIL` to your email address: that's your admin login,
+- set `PDF2PHONE_PASSWORD` to a password for your **first login only**: **at least 12 characters**. Straight after logging in you choose your own password, and this one stops working,
 - paste the long random line printed above after `PDF2PHONE_SECRET=`,
 - save with **Ctrl+O**, **Enter**, then exit with **Ctrl+X**.
 
@@ -174,7 +177,7 @@ read.example.com {
 
 ## 8. Use it from your phone
 
-1. Open `https://read.example.com` in **Safari** and log in.
+1. Open `https://read.example.com` in **Safari** and log in with your email and the first-login password. You're then asked to choose your own password. After that, you can delete the `PDF2PHONE_PASSWORD` line from `.env`.
 2. Tap **Share**, then **Add to Home Screen**. You get an "Aa" icon that opens the library like an app.
 3. Read `docs/USING.md` (or `docs/USING.html`) for everyday use.
 
@@ -221,4 +224,8 @@ Press **Ctrl+C** to stop watching. The app keeps running.
 
 **The build fails while installing torch.** On some processor types the CPU-only PyTorch download can be missing. In the `Dockerfile`, delete the `--index-url https://download.pytorch.org/whl/cpu` part of the `torch` line and build again. The image will be bigger, but it will work.
 
-**Forgot the password.** Edit `.env`, then run `docker compose up -d`. Changing the password logs out every device.
+**Forgot your password.** Run this, then type a new password twice (nothing is shown as you type). It also logs that account out on every device:
+
+```
+server$ cd ~/pdf2phone && docker compose exec pdf2phone pdf2phone set-password you@example.com
+```

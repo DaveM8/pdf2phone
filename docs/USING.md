@@ -2,8 +2,10 @@
 
 ## Getting in
 
-- Open your site in **Safari** and log in with your password.
-- You stay logged in for about 6 months on that phone.
+- Open your site in **Safari** and log in with your **email address** and password.
+- You stay logged in for **30 days** on that phone.
+- Your library is **private**: nobody else with an account can see your documents.
+- **Account** (top of the library) lets you change your password. Changing it logs you out on every other device.
 - **Add it to your Home Screen:** tap **Share**, then **Add to Home Screen**. The "Aa" icon then opens straight into your library.
 
 ## Adding a PDF

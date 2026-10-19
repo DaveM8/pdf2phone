@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import functools
 import http.server
+import os
 import socket
 import subprocess
 import sys
@@ -137,6 +138,50 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate_accounts(args: argparse.Namespace) -> int:
+    from .web import migrate  # needs the [web] extra
+
+    lib = Path(args.library or os.environ.get("PDF2PHONE_LIBRARY", "/data/library")).expanduser()
+    email = args.admin_email or os.environ.get("PDF2PHONE_ADMIN_EMAIL", "")
+    if not email and not args.dry_run:
+        _progress("✗ Set PDF2PHONE_ADMIN_EMAIL (or pass --admin-email).")
+        return 2
+    try:
+        migrate.migrate(lib, email, dry_run=args.dry_run, say=lambda m: print(m, flush=True))
+    except Exception as e:
+        _progress(f"✗ {e}")
+        return 1
+    return 0
+
+
+def cmd_set_password(args: argparse.Namespace) -> int:
+    """Emergency reset, run on the server: docker compose exec pdf2phone pdf2phone set-password EMAIL"""
+    import getpass
+
+    from .web.users import UserStore
+
+    lib = Path(args.library or os.environ.get("PDF2PHONE_LIBRARY", "/data/library")).expanduser()
+    store = UserStore(lib)
+    try:
+        user = store.by_email(args.email)
+        if user is None:
+            _progress(f"✗ No account for {args.email}.")
+            return 1
+        new = getpass.getpass("New password (at least 12 characters): ")
+        if getpass.getpass("Same again: ") != new:
+            _progress("✗ The two passwords don't match; nothing changed.")
+            return 1
+        try:
+            store.set_password(user.id, new)
+        except ValueError as e:
+            _progress(f"✗ {e}")
+            return 1
+    finally:
+        store.close()
+    print(f"Password changed for {user.email}. Every device they were logged in on is now logged out.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="pdf2phone", description="PDF → large-print reader HTML")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -162,6 +207,18 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--bind", default="0.0.0.0", help="use 127.0.0.1 for this Mac only")
     s.add_argument("--quiet", "-q", action="store_true")
     s.set_defaults(func=cmd_serve)
+
+    m = sub.add_parser("migrate-accounts",
+                       help="one-off: move the old shared web library into the admin's account (backs up first)")
+    m.add_argument("--library", "-l", help="default: $PDF2PHONE_LIBRARY or /data/library")
+    m.add_argument("--admin-email", help="default: $PDF2PHONE_ADMIN_EMAIL")
+    m.add_argument("--dry-run", action="store_true", help="only list what would move")
+    m.set_defaults(func=cmd_migrate_accounts)
+
+    pw = sub.add_parser("set-password", help="set a new password for an account (asks for it, never shown)")
+    pw.add_argument("email")
+    pw.add_argument("--library", "-l", help="default: $PDF2PHONE_LIBRARY or /data/library")
+    pw.set_defaults(func=cmd_set_password)
 
     args = p.parse_args(argv)
     return args.func(args)
