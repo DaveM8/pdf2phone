@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en" data-theme="cream" data-font="dyslexic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reader">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Ask for an account · Reader</title>
+<link rel="stylesheet" href="/{{ static }}/reader.css">
+<style>
+  main { max-width: 520px; margin: 6vh auto 40px; font-size: 22px; }
+  h1 { font-size: 30px; margin: 0 0 16px; }
+  label { display: block; margin: 16px 0 8px; }
+  input[type=text], input[type=email], input[type=password], textarea { width: 100%; min-height: 56px;
+    font: 22px var(--font); padding: 0 12px; border: 2px solid var(--rule); border-radius: 12px;
+    background: var(--panel); color: var(--fg); }
+  textarea { padding: 10px 12px; min-height: 120px; resize: vertical; }
+  button { width: 100%; min-height: 56px; margin-top: 20px; border-radius: 12px; border: 0;
+    background: var(--accent); color: #fff; font: 700 22px var(--font); cursor: pointer; }
+  .error { border-left: 6px solid #b91c1c; padding: 8px 12px; background: var(--panel); }
+  .hint { color: var(--muted); font-size: 0.8em; margin: 6px 0 0; }
+  .optional { color: var(--muted); font-weight: 400; }
+  .privacy { border: 2px solid var(--rule); border-radius: 14px; padding: 4px 16px; margin-top: 28px;
+    background: var(--panel); font-size: 0.85em; }
+  .privacy h2 { font-size: 1.1em; margin: 12px 0 4px; }
+  /* The trap box for bots: off screen, so people never see or fill it. */
+  .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  .foot { margin-top: 28px; font-size: 18px; color: var(--muted); }
+  .foot a { color: var(--link); }
+</style>
+</head>
+<body>
+<main>
+{% if state == "form" %}
+  <h1>Ask for an account</h1>
+  <p>Fill this in and confirm your email address. The owner then looks at your request, and you get an email when you can log in.</p>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="/signup">
+    <input type="hidden" name="stamp" value="{{ stamp }}">
+    <div class="trap" aria-hidden="true">
+      <label for="website">Leave this empty</label>
+      <input id="website" type="text" name="website" tabindex="-1" autocomplete="off">
+    </div>
+    <label for="first_name">First name</label>
+    <input id="first_name" type="text" name="first_name" value="{{ first_name }}" maxlength="{{ name_max }}"
+           autocomplete="given-name" required autofocus>
+    <label for="last_name">Last name</label>
+    <input id="last_name" type="text" name="last_name" value="{{ last_name }}" maxlength="{{ name_max }}"
+           autocomplete="family-name" required>
+    <label for="email">Email</label>
+    <input id="email" type="email" name="email" value="{{ email }}" autocomplete="email" autocapitalize="none"
+           spellcheck="false" required>
+    <label for="pw">Choose a password</label>
+    <input id="pw" type="password" name="password" autocomplete="new-password" minlength="{{ min_len }}" required>
+    <p class="hint">At least {{ min_len }} characters. A few random words, like "harbour pencil violet gravy", is strong and easy to type.</p>
+    <label for="confirm">Password again</label>
+    <input id="confirm" type="password" name="confirm" autocomplete="new-password" minlength="{{ min_len }}" required>
+    <label for="note">A note for the owner <span class="optional">(optional)</span></label>
+    <textarea id="note" name="note" maxlength="{{ note_max }}">{{ note }}</textarea>
+    <p class="hint">For example, how you know them, so they recognise you.</p>
+    <button type="submit">Ask for an account</button>
+  </form>
+
+  <section class="privacy">
+    <h2>What's kept about you</h2>
+    <p>Your name, email address and note, so the owner knows who you are. Also the PDFs you add, and the pages made from them.</p>
+    <p><strong>Only you</strong> can open your documents. Your password is stored scrambled, so nobody can read it, not even the owner.</p>
+    <p>Emails are sent through Brevo, an email service.</p>
+    <p>If you don't confirm your email within {{ confirm_hours }} hours, or your request is turned down, <strong>everything you typed here is deleted</strong>.</p>
+    <p>You can <strong>delete your account</strong> at any time, on the Account page. That erases your documents and everything you typed here. All that's kept is a record that an account was deleted on that date, with a one-way code made from your email address that can't be turned back into it.</p>
+    <p>If the owner removes your account, exactly the same is erased and kept.</p>
+  </section>
+
+{% elif state == "check_email" %}
+  <h1>Check your email</h1>
+  <p>We've sent you an email with a link. Open it to confirm your address.</p>
+  <p>The link works for {{ confirm_hours }} hours. If you can't see the email, look in your spam folder.</p>
+
+{% elif state == "confirm" %}
+  <h1>Confirm your email</h1>
+  <p>Tap the button to confirm your address and send your request to the owner.</p>
+  <form method="post" action="/signup/confirm">
+    <input type="hidden" name="t" value="{{ token }}">
+    <button type="submit">Confirm my email</button>
+  </form>
+
+{% elif state == "confirmed" %}
+  <h1>Thank you</h1>
+  <p>Your email address is confirmed, and your request has gone to the owner.</p>
+  <p>You'll get an email when you can log in.</p>
+
+{% elif state == "expired" %}
+  <h1>This link doesn't work any more</h1>
+  <p>It may have been used already, or it's more than {{ confirm_hours }} hours old.</p>
+  <p><a href="/signup">Ask for an account again</a></p>
+
+{% elif state == "deleted" %}
+  <h1>Your account has been deleted</h1>
+  <p>Your documents, your PDFs and your details have all been erased.</p>
+  <p>Thank you for using the reader.</p>
+
+{% else %}
+  <h1>Sign-up is closed</h1>
+  <p>New accounts can't be requested right now.</p>
+{% endif %}
+  <p class="foot"><a href="/login">Log in</a> · <a href="{{ source_url }}">Source code</a></p>
+</main>
+<script>
+try { var s = JSON.parse(localStorage.getItem("pdf2phone:settings") || "null");
+  if (s) { document.documentElement.dataset.theme = s.theme || "cream"; document.documentElement.dataset.font = s.font || "dyslexic"; } } catch (e) {}
+</script>
+</body>
+</html>

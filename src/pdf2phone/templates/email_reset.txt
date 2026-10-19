@@ -1,0 +1,11 @@
+Hello {{ user.first_name or "there" }},
+
+Someone, hopefully you, asked to change the password for your pdf2phone account.
+
+To choose a new password, open this link:
+
+{{ link }}
+
+The link works for {{ hours }} hour{{ "s" if hours != 1 }} and only once. Saving a new password logs you out on your other devices.
+
+If this wasn't you, ignore this email. Your password stays the same.

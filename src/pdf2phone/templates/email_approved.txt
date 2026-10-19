@@ -1,0 +1,7 @@
+Hello {{ user.first_name }},
+
+Your pdf2phone account is ready. Log in with your email address and the password you chose:
+
+{{ link }}
+
+Tip for iPhone: after logging in, tap Share, then Add to Home Screen. The reader then opens like an app.

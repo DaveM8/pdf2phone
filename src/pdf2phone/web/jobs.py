@@ -109,6 +109,13 @@ class JobQueue:
         return any(j.user_id == user_id and j.doc_id == doc_id and j.state in ("queued", "running")
                    for j in self.jobs.values())
 
+    def forget_user(self, user_id: int) -> None:
+        """Drop a deleted user's job records (they hold PDF file names)."""
+        with self._lock:
+            for job in [j for j in self.jobs.values() if j.user_id == user_id]:
+                del self.jobs[job.id]
+                (self.dir / f"{job.id}.json").unlink(missing_ok=True)
+
     def recent(self, user_id: int) -> list[Job]:
         """What ``user_id``'s library page shows: their unfinished jobs, failures
         from the last day, and successes from the last 2 minutes."""

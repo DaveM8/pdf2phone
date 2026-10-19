@@ -1,0 +1,11 @@
+Hello {{ user.first_name }},
+
+Someone, hopefully you, asked for an account on pdf2phone, the large-print PDF reader.
+
+To confirm your email address, open this link:
+
+{{ link }}
+
+The link works for {{ hours }} hours. After you confirm, the owner looks at your request, and you'll get another email when you can log in.
+
+If this wasn't you, ignore this email. Nothing more will happen, and what was typed in is deleted after {{ hours }} hours.

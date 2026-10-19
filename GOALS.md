@@ -4,7 +4,7 @@ Date: 2026-10-16
 
 ## Status
 
-Signed off 2026-10-16. Milestone 1 deployed to the server 2026-10-19 (owner to confirm check 8 on the phone). Next: security review of milestone 1, then milestone 2.
+Signed off 2026-10-16. Milestone 1 deployed to the server 2026-10-19 (owner to confirm check 8 on the phone). Milestone 1 security review done (2 fixes). Milestone 2 built and tested 2026-10-19 (checks 1-4 and 9 pass in tests/test_signup.py); Milestone 3 (self-delete, owner removal, forgot password) built and tested 2026-10-19. Privacy note approved by the owner 2026-10-19. Waiting for: deploy and a real sign-up on the server.
 
 ## Problem
 
@@ -25,15 +25,15 @@ data was removed, and whether the user or the admin removed it.
 
 ## Success criteria
 
-- [ ] 1. A bot submitting the sign-up form is rejected and no email is sent (test submits like a bot).
-- [ ] 2. A real sign-up shows "waiting for approval", and the owner receives exactly one email at davidjmorrisroe@proton.me with a link to the admin page.
-- [ ] 3. The admin page opens only for the owner; a logged-in friend gets "not allowed".
-- [ ] 4. Approve → the friend can log in. Deny → they can't, and their sign-up details are erased.
+- [x] 1. A bot submitting the sign-up form is rejected and no email is sent (test submits like a bot).
+- [x] 2. A real sign-up shows "waiting for approval", and the owner receives exactly one email at davidjmorrisroe@proton.me with a link to the admin page.
+- [x] 3. The admin page opens only for the owner; a logged-in friend gets "not allowed".
+- [x] 4. Approve → the friend can log in. Deny → they can't, and their sign-up details are erased.
 - [x] 5. Two users each upload a PDF; neither can open the other's document, even by typing its exact address (test).
-- [ ] 6. "Delete my account" removes their documents, PDFs and every personal detail from disk and database; only one row remains (keyed hash + date + "deleted by user"). A test searches everything for their email and name.
-- [ ] 7. Same as 6 when the owner removes them; the row says "removed by admin".
+- [x] 6. "Delete my account" removes their documents, PDFs and every personal detail from disk and database; only one row remains (keyed hash + date + "deleted by user"). A test searches everything for their email and name.
+- [x] 7. Same as 6 when the owner removes them; the row says "removed by admin".
 - [ ] 8. The owner's existing library and reading positions still work after the upgrade, now under their admin account.
-- [ ] 9. An approved friend receives an email saying they can log in.
+- [x] 9. An approved friend receives an email saying they can log in.
 
 ## Non-goals (not in this version)
 
@@ -89,7 +89,7 @@ In scope beyond the criteria above: a forgot-password email.
 - [x] Sign-up asks for first name, last name, email, password and an optional note so the owner recognises friends. Names and note are erased on denial or deletion (only the keyed email hash, date and who removed it remain). (decided 2026-10-19)
 - [x] AGPL: the owner makes the GitHub repository public, and the app shows a "Source code" link to it. The owner flips the repo to public themselves before any friend signs up. (decided 2026-10-19)
 - [ ] Where nightly backups are stored: the same server, or also somewhere else. (decide by: milestone 4)
-- [ ] Wording of the privacy note on the sign-up page. (decide by: milestone 2)
+- [x] Wording of the privacy note on the sign-up page (templates/signup.html.j2): approved by the owner 2026-10-19.
 
 ## Milestones
 
@@ -108,9 +108,24 @@ Done when: checks 5 and 8 pass, and the owner logs in on their phone with their 
 
 Checks 1–4 and 9.
 
+- [x] Sign-up form (first name, last name, email, password, optional note) with bot checks: hidden trap box, signed form stamp (at least 3 s), 5 sign-ups an hour per address
+- [x] Confirmation email; the link shows a button, so email scanners can't confirm by opening it
+- [x] Owner emailed once, after confirmation; admin page with approve / turn down
+- [x] Turned-down and never-confirmed sign-ups erased, including from the database file on disk
+- [x] Brevo over SMTP; settings only in .env; links built from PDF2PHONE_PUBLIC_URL
+- [x] "Source code" link on every page (AGPL)
+- [x] Owner approves the privacy note wording (2026-10-19)
+- [ ] On the server: deploy, then a real sign-up from a second email address end to end
+
+Done when: the owner has received the real emails and approved a real test account.
+
 ### Milestone 3: deletion and password reset
 
 Checks 6 and 7, plus forgot-password.
+
+- [x] "Delete my account" on the Account page (password required, rate-limited; owner can't delete themselves; waits for a running conversion). Erases the row, emailed links, job records and the user's folder; keeps one `deletions` row: HMAC-SHA256 of the email keyed with PDF2PHONE_RECORD_KEY, the date, "user". Built 2026-10-19 before any friend had an account.
+- [x] Owner removes a user from the admin page (check 7): a Remove button for each active friend, with the page's CSRF token and a confirm box; same erasure as self-delete, record says "admin"; waits for a running conversion.
+- [x] Forgot-password email: `/forgot` gives the same page (sent after the response) whether or not the email has an account; at most 5 requests an hour per connection and 5 emails an hour per account; the link works once, for 1 hour; saving a new password logs out every other device.
 
 ### Milestone 4: backups
 

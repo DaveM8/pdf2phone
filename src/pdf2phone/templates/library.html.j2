@@ -58,7 +58,7 @@
 </head>
 <body>
 <main>
-<div class="top"><h1>Reading library</h1>{% if web %}<span class="links"><a href="/account">Account</a> · <a href="/logout">Log out</a></span>{% endif %}</div>
+<div class="top"><h1>Reading library</h1>{% if web %}<span class="links">{% if web.user.is_admin %}<a href="/admin">Admin{% if web.waiting %} ({{ web.waiting }} waiting){% endif %}</a> · {% endif %}<a href="/account">Account</a> · <a href="/logout">Log out</a></span>{% endif %}</div>
 
 {% if web %}
 {% if web.flash %}<p class="flash">{{ web.flash }}</p>{% endif %}
@@ -109,6 +109,7 @@
 {% else %}
 <p class="empty">Nothing here yet. Run <code>pdf2phone convert some.pdf</code> on the Mac.</p>
 {% endif %}
+{% if web %}<p class="hint" style="margin-top:28px"><a href="{{ web.source_url }}">Source code</a></p>{% endif %}
 </main>
 <script>
 (function () {

@@ -123,7 +123,6 @@ def _slug(text: str, used: set[str]) -> str:
 
 
 _MATHML_NS = "http://www.w3.org/1998/Math/MathML"
-ET.register_namespace("", _MATHML_NS)
 _MATHML_TAGS = {
     "math", "mrow", "mi", "mn", "mo", "ms", "mtext", "mspace", "msub", "msup", "msubsup",
     "mfrac", "msqrt", "mroot", "mstyle", "mtable", "mtr", "mtd", "mlabeledtr", "mover",
@@ -149,6 +148,12 @@ def _safe_mathml(mathml: str) -> str | None:
             return None
         for name in [a for a in el.attrib if _MATHML_DROP_ATTRS.match(a)]:
             del el.attrib[name]
+        el.tag = tag
+    # Every tag is checked MathML, so write them plain with one xmlns on the
+    # root.  (Not ET.register_namespace: that registry is global and other
+    # libraries change it, after which formulas came out as <ns0:math>, which
+    # browsers don't show as maths.)
+    root.set("xmlns", _MATHML_NS)
     return ET.tostring(root, encoding="unicode", short_empty_elements=False)
 
 

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" data-theme="cream" data-font="dyslexic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Admin · Reader</title>
+<link rel="stylesheet" href="/{{ static }}/reader.css">
+<style>
+  main { max-width: 640px; margin: 0 auto; padding-top: 20px; font-size: 22px; }
+  h1 { font-size: 30px; margin: 0 0 6px; }
+  h2 { font-size: 24px; margin: 28px 0 8px; }
+  .back { display: inline-block; margin-bottom: 14px; color: var(--link); font-size: 18px; }
+  .flash { border-left: 6px solid var(--accent); padding: 8px 12px; background: var(--panel); }
+  .error { border-left: 6px solid #b91c1c; padding: 8px 12px; background: var(--panel); }
+  .people { list-style: none; padding: 0; margin: 0; }
+  .card { border: 2px solid var(--rule); border-radius: 14px; padding: 14px; margin: 0 0 14px; background: var(--panel); }
+  .card .name { font-weight: 700; overflow-wrap: anywhere; }
+  .card .email, .card .when { color: var(--muted); font-size: 0.8em; overflow-wrap: anywhere; }
+  .card .note { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .actions form { flex: 1; display: flex; }
+  .actions button { flex: 1; min-height: 56px; border-radius: 12px; font: 700 20px var(--font); cursor: pointer; }
+  .approve { border: 0; background: var(--accent); color: #fff; }
+  .deny { border: 2px solid #b91c1c; background: transparent; color: #b91c1c; }
+  .empty { color: var(--muted); }
+  .foot { margin-top: 28px; font-size: 18px; color: var(--muted); }
+  .foot a { color: var(--link); }
+  .simple li { padding: 10px 0; border-bottom: 2px solid var(--rule); overflow-wrap: anywhere;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .simple .who { flex: 1 1 100%; }  /* the button goes underneath, so long names keep the full width */
+  .simple form { flex: 0 0 auto; }
+  .remove { min-height: 48px; padding: 0 16px; border-radius: 12px; border: 2px solid #b91c1c;
+    background: transparent; color: #b91c1c; font: 700 18px var(--font); cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">‹ Library</a>
+{% if not allowed %}
+  <h1>Not allowed</h1>
+  <p class="error" role="alert">Only the owner can open this page.</p>
+{% else %}
+  <h1>Admin</h1>
+  {% if flash %}<p class="flash" role="status">{{ flash }}</p>{% endif %}
+
+  <h2>Waiting for you ({{ pending|length }})</h2>
+  {% if pending %}
+  <ul class="people">
+  {% for u in pending %}
+    <li class="card">
+      <div class="name">{{ u.name }}</div>
+      <div class="email">{{ u.email }}</div>
+      <div class="when">Asked {{ u.created|date }}</div>
+      {% if u.note %}<p class="note">{{ u.note }}</p>{% endif %}
+      <div class="actions">
+        <form method="post" action="/admin/users/{{ u.id }}/approve">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="approve" type="submit">Approve</button>
+        </form>
+        <form method="post" action="/admin/users/{{ u.id }}/deny"
+              onsubmit="return confirm('Turn down this request? Everything they entered will be deleted.')">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="deny" type="submit">Turn down</button>
+        </form>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">Nobody is waiting.</p>
+  {% endif %}
+
+  <h2>People with an account ({{ active|length }})</h2>
+  <ul class="people simple">
+  {% for u in active %}
+    <li><span class="who">{{ u.name or u.email }}{% if u.name %} <span class="email">· {{ u.email }}</span>{% endif %}{% if u.is_admin %} <span class="email">· you</span>{% endif %}</span>
+      {% if not u.is_admin %}
+      <form method="post" action="/admin/users/{{ u.id }}/remove"
+            onsubmit="return confirm('Remove this person? Their documents, PDFs and details will be deleted. This can\'t be undone.')">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="remove" type="submit">Remove</button>
+      </form>
+      {% endif %}
+    </li>
+  {% endfor %}</ul>
+{% endif %}
+  <p class="foot"><a href="{{ source_url }}">Source code</a></p>
+</main>
+</body>
+</html>

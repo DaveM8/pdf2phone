@@ -80,3 +80,15 @@ def test_only_engine_images_are_loaded():
     html = render("![out](/logout) ![up](../x.png)\n").html
     assert "<img" not in html and "out" in html
     assert '<img src="figure-1.png"' in render("![](figure-1.png)\n").html
+
+
+def test_maths_survives_other_code_changing_the_xml_namespace_registry():
+    import xml.etree.ElementTree as ET
+
+    ET.register_namespace("m", "http://www.w3.org/1998/Math/MathML")  # what some library did
+    try:
+        html = render("Energy $E=mc^2$ here.\n").html
+    finally:
+        ET._namespace_map.pop("http://www.w3.org/1998/Math/MathML", None)
+    assert "<math " in html and 'xmlns="http://www.w3.org/1998/Math/MathML"' in html
+    assert ":math" not in html and ":mi" not in html  # no ns0:/m: prefixes

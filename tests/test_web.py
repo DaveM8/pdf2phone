@@ -440,6 +440,7 @@ def test_nginx_config_overwrites_forwarded_for():
 def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("PDF2PHONE_SECRET", "s" * 64)
     monkeypatch.setenv("PDF2PHONE_ADMIN_EMAIL", " Owner@Example.com ")
+    monkeypatch.setenv("PDF2PHONE_RECORD_KEY", "r" * 40)
     for bad in ("short", "change-me-to-something-long"):
         monkeypatch.setenv("PDF2PHONE_PASSWORD", bad)
         with pytest.raises(RuntimeError):
@@ -488,9 +489,9 @@ def test_password_checks_run_at_most_two_at_a_time(tmp_path, monkeypatch):
     client, app = make_client(tmp_path)
     ready_admin(client)
     running, peak, lock = 0, 0, threading.Lock()
-    real_verify = users_mod.UserStore.verify
+    real_check = users_mod.UserStore.check
 
-    def slow_verify(self, email, password):
+    def slow_check(self, email, password):
         nonlocal running, peak
         with lock:
             running += 1
@@ -498,9 +499,9 @@ def test_password_checks_run_at_most_two_at_a_time(tmp_path, monkeypatch):
         _time.sleep(0.2)
         with lock:
             running -= 1
-        return real_verify(self, email, password)
+        return real_check(self, email, password)
 
-    monkeypatch.setattr(users_mod.UserStore, "verify", slow_verify)
+    monkeypatch.setattr(users_mod.UserStore, "check", slow_check)
 
     async def flood():  # one event loop, like the real server
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:

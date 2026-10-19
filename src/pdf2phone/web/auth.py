@@ -82,3 +82,30 @@ class Throttle:
         """Seconds until ``ip`` may try again (0 = may try now).  Read-only."""
         with self._lock:
             return self._wait(ip, time.time())
+
+
+class RateLimit:
+    """At most ``limit`` actions per address in ``window`` seconds (e.g. sign-ups).
+    Bounded in memory like Throttle."""
+
+    def __init__(self, limit: int, window: float) -> None:
+        self.limit, self.window = limit, window
+        self._lock = threading.Lock()
+        self._per_ip: OrderedDict[str, deque[float]] = OrderedDict()
+
+    def allow(self, ip: str) -> bool:
+        """Record an attempt; False if ``ip`` is over the limit (not recorded)."""
+        now = time.time()
+        with self._lock:
+            times = self._per_ip.get(ip)
+            if times is None:
+                times = self._per_ip[ip] = deque(maxlen=self.limit)
+                if len(self._per_ip) > MAX_TRACKED_IPS:
+                    self._per_ip.popitem(last=False)
+            self._per_ip.move_to_end(ip)
+            while times and now - times[0] >= self.window:
+                times.popleft()
+            if len(times) >= self.limit:
+                return False
+            times.append(now)
+            return True

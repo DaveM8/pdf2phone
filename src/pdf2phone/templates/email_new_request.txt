@@ -1,0 +1,9 @@
+{{ user.name }} ({{ user.email }}) has asked for a pdf2phone account and confirmed their email address.
+{% if user.note %}
+Their note:
+
+{{ user.note }}
+{% endif %}
+To approve or turn down the request, log in and open the admin page:
+
+{{ link }}
