@@ -464,3 +464,48 @@ def test_set_password_command(logged_in, monkeypatch):
     assert client.get("/").status_code == 303  # logged out everywhere
     assert login(client, password="recovered long password").status_code == 303
     assert cli.main(["set-password", "nobody@example.com", "-l", str(app.state.users.library)]) == 1
+
+
+def test_guessing_current_password_is_throttled(logged_in):
+    # A stolen session must not allow unlimited guesses at the current password.
+    client, _ = logged_in
+    for _ in range(5):
+        assert set_password(client, "n" * 20, current="wrong guess here").status_code == 400
+    r = set_password(client, "n" * 20, current=ADMIN_PW)
+    assert r.status_code == 429 and "Too many" in r.text  # locked, even with the right one
+
+
+def test_password_checks_run_at_most_two_at_a_time(tmp_path, monkeypatch):
+    # Each Argon2 check briefly takes ~64 MB; a login flood mustn't run dozens at once.
+    import asyncio
+    import threading
+    import time as _time
+
+    import httpx
+
+    from pdf2phone.web import users as users_mod
+
+    client, app = make_client(tmp_path)
+    ready_admin(client)
+    running, peak, lock = 0, 0, threading.Lock()
+    real_verify = users_mod.UserStore.verify
+
+    def slow_verify(self, email, password):
+        nonlocal running, peak
+        with lock:
+            running += 1
+            peak = max(peak, running)
+        _time.sleep(0.2)
+        with lock:
+            running -= 1
+        return real_verify(self, email, password)
+
+    monkeypatch.setattr(users_mod.UserStore, "verify", slow_verify)
+
+    async def flood():  # one event loop, like the real server
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+            await asyncio.gather(*(c.post("/login", data={"email": ADMIN, "password": f"wrong guess {i:04}"})
+                                   for i in range(4)))
+
+    asyncio.run(flood())
+    assert peak == 2

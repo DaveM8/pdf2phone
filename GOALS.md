@@ -4,7 +4,7 @@ Date: 2026-10-16
 
 ## Status
 
-Signed off 2026-10-16. Working on milestone 1.
+Signed off 2026-10-16. Milestone 1 deployed to the server 2026-10-19 (owner to confirm check 8 on the phone). Next: security review of milestone 1, then milestone 2.
 
 ## Problem
 
@@ -51,7 +51,7 @@ In scope beyond the criteria above: a forgot-password email.
 
 - Runs on the owner's Hetzner Ubuntu server, which also hosts other sites. Docker behind the existing nginx; app on 127.0.0.1:8090.
 - One conversion at a time (Docling uses ~3 GB of memory); the queue is shared by all users.
-- Email goes out through a new Gmail account made just for the app, using an app password (needs 2-Step Verification), with SMTP settings in .env so a paid service can replace it later without code changes. Free; Gmail allows ~500 emails a day.
+- Email goes out through Brevo's free plan (EU-based; 300 emails a day; free emails carry Brevo branding), from an address on the owner's own domain authenticated with Brevo's DNS records. SMTP settings (smtp-relay.brevo.com, port 587, STARTTLS, SMTP key) live in .env, so another service can replace it later without code changes. Port 587 isn't blocked by Hetzner.
 - A few minutes of downtime during deployment is fine.
 - No deadline: ship when it's right.
 - Develop on the Mac, push to GitHub, pull and rebuild on the server. Docker can't be built on the Mac.
@@ -60,7 +60,7 @@ In scope beyond the criteria above: a forgot-password email.
 
 - Moving the existing library into the owner's account. Protection: the upgrade refuses to run without a backup file, and the move is rehearsed on a copy of the real library on the server and checked by the owner before it runs for real.
 - Account deletion is irreversible by design. Deleted data stays in nightly backups for up to 14 days, and the sign-up page says so.
-- The Gmail app password can read that account's mail; it's a dedicated empty account, kept only in .env.
+- The Brevo SMTP key lets anyone who has it send email as the app's domain. It's kept only in .env, and can be revoked and replaced in Brevo at any time.
 - The keyed-hash key lives in .env, outside the database. If it's lost, old deletion records can't be checked against an email any more.
 
 ## Decisions
@@ -77,7 +77,7 @@ In scope beyond the criteria above: a forgot-password email.
 | Password hashing | Argon2id (argon2-cffi) | bcrypt | Current best practice |
 | Backups | Nightly, kept 14 days, stated on the sign-up page | 7 or 30 days; none; forever | Deleted data fully gone within two weeks |
 | Admin account | Created from PDF2PHONE_ADMIN_EMAIL on first start; inherits the existing library; new personal password set at first login; shared password retired | One-off command | No extra steps on the server |
-| Email sending | New dedicated Gmail account + app password, SMTP settings in .env | Personal Gmail; Proton Bridge; paid service | Free now, easy to swap later |
+| Email sending | Brevo free plan, SMTP settings in .env (changed 2026-10-19) | Dedicated Gmail (sign-up blocked by device verification); Scaleway; Proton SMTP; own mail server | Free, EU-based, no Google account needed; easy to swap later |
 | Migration safety | Backup + rehearsal on a copy first | Backup only | Protects the owner's documents and positions |
 | Password rule | At least 12 characters | 16 characters; + breached-password check | Passphrases; no outside calls |
 | Session length | 30 days | 180 days | Shorter exposure if a phone is lost |
@@ -86,8 +86,8 @@ In scope beyond the criteria above: a forgot-password email.
 
 - [x] Password rules: at least 12 characters for every account; passphrases encouraged, no symbol/capital rules. (decided 2026-10-16)
 - [x] Sessions last 30 days (was 180); a password change still logs out every device. (decided 2026-10-16)
-- [ ] What the sign-up form asks for besides email and password, for example a name or a "who are you" note so the owner recognises friends. Every extra field is more personal data. (decide by: milestone 2)
-- [ ] AGPL: PyMuPDF is AGPL, so once friends use the service, they must be offered the source code (a link to the repository, or giving them access). (decide by: milestone 2, before any friend signs up)
+- [x] Sign-up asks for first name, last name, email, password and an optional note so the owner recognises friends. Names and note are erased on denial or deletion (only the keyed email hash, date and who removed it remain). (decided 2026-10-19)
+- [x] AGPL: the owner makes the GitHub repository public, and the app shows a "Source code" link to it. The owner flips the repo to public themselves before any friend signs up. (decided 2026-10-19)
 - [ ] Where nightly backups are stored: the same server, or also somewhere else. (decide by: milestone 4)
 - [ ] Wording of the privacy note on the sign-up page. (decide by: milestone 2)
 

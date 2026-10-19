@@ -38,6 +38,7 @@ PUBLIC_EXACT = {"/login", "/healthz", "/manifest.webmanifest", "/apple-touch-ico
 SET_PASSWORD_PATHS = {"/account", "/account/password", "/logout"}
 PUBLIC_PREFIX = ("/_static/",)
 DOC_ID = re.compile(r"^[\w-]{1,80}$")
+ARGON2_CONCURRENCY = 2
 
 # Sent with every response.
 SECURITY_HEADERS = {
@@ -81,6 +82,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         raise RuntimeError("The admin account has no password yet. Set PDF2PHONE_PASSWORD for the first login.")
     queue = JobQueue(lib, users.root)
     throttle = Throttle()
+    # Each Argon2 check takes ~64 MB for a moment.  Cap how many run at once so a
+    # flood of logins can't push the container (which also runs Docling) out of memory.
+    argon2_slots = asyncio.Semaphore(ARGON2_CONCURRENCY)
+
+    async def hashing(fn, *args):
+        async with argon2_slots:
+            return await asyncio.to_thread(fn, *args)
 
     def version(user: User) -> str:
         return session_version(settings.secret, user, settings.password)
@@ -178,9 +186,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # at ~1 per GLOBAL_DELAY_SECONDS overall without refusing anyone.
             async with throttle.serial:
                 await asyncio.sleep(GLOBAL_DELAY_SECONDS)
-                user = await asyncio.to_thread(check_password, candidate, email, password)
+                user = await hashing(check_password, candidate, email, password)
         else:
-            user = await asyncio.to_thread(check_password, candidate, email, password)
+            user = await hashing(check_password, candidate, email, password)
 
         if user is None:
             # Same message whether the email or the password was wrong.
@@ -220,14 +228,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                               confirm: str = Form("")):
         user: User = request.state.user
         if not user.needs_password:
-            ok = await asyncio.to_thread(users.verify, user.email, current)
-            if ok is None:
+            # Same per-address limit as logging in, so a stolen session can't be
+            # used to guess the current password and take the account over.
+            ip = request.client.host if request.client else "unknown"
+            if wait := throttle.begin(ip):
+                return account_page(request, error=f"Too many wrong tries. Try again in {wait // 60 + 1} minutes.",
+                                    status=429)
+            if await hashing(users.verify, user.email, current) is None:
                 return account_page(request, error="Your current password isn't right.", status=400)
+            throttle.succeed(ip)
         if new != confirm:
             return account_page(request, error="The two new passwords don't match.", status=400)
         if problem := password_problem(new):
             return account_page(request, error=problem, status=400)
-        user = await asyncio.to_thread(users.set_password, user.id, new)
+        user = await hashing(users.set_password, user.id, new)
         # Keep this device logged in; every other session's version is now stale.
         request.session["v"] = version(user)
         request.session["dev"] = device_mark(user)
