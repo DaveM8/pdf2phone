@@ -1,6 +1,8 @@
 # Putting pdf2phone on your Hetzner server
 
-**Already running the older single-password version?** Follow `docs/UPGRADE-ACCOUNTS.md` instead of this guide.
+**Moving pdf2phone to a new server?** Follow `docs/MOVE-SERVER.md` instead: it keeps every account and document.
+
+**Sharing the server with another app?** Read `deploy/SHARED-SERVER.md` first: ports, nginx and memory are shared.
 
 This guide assumes:
 
@@ -66,17 +68,38 @@ server$ sudo usermod -aG docker $USER
 
 Log out (`exit`) and log back in, so the last line takes effect. Then `docker --version` should work without `sudo`.
 
-## 4. Copy the project to the server
+## 4. Download the project from GitHub
 
-On the Mac:
+The code is in the private GitHub repository `DaveM8/pdf2phone`. The server gets its own **read-only** key, so it can download the code but never change it.
 
 ```
-mac$ rsync -av --exclude .venv --exclude markitdown --exclude .git --exclude '*.html' ~/pdf2phone/ you@your-server:~/pdf2phone/
+server$ ssh-keygen -t ed25519 -f ~/.ssh/github-pdf2phone -N "" -C "pdf2phone deploy key"
+server$ cat ~/.ssh/github-pdf2phone.pub
 ```
 
-The `'*.html'` exclusion only skips generated pages such as the summary. The templates the app needs end in `.j2`, so they're still copied.
+Copy the line it prints. On GitHub, open the repository, then **Settings → Deploy keys → Add deploy key**. Paste it, and leave **Allow write access** unticked.
 
-This copy is only for the very first install. Once the server folder is connected to GitHub, update it with `git pull` instead (see *Updating after changes*).
+Tell SSH to use that key for GitHub:
+
+```
+server$ nano ~/.ssh/config
+```
+
+Add these lines, then save:
+
+```
+Host github-pdf2phone
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/github-pdf2phone
+    IdentitiesOnly yes
+```
+
+Download the code. The folder **must** be called `pdf2phone`, because Docker names the documents volume after it:
+
+```
+server$ git clone git@github-pdf2phone:DaveM8/pdf2phone.git ~/pdf2phone
+```
 
 ## 5. Set your admin email and first password
 
@@ -211,7 +234,7 @@ Wait until it says **healthy**. Your documents are kept, because they live in a 
 Three rules keep the Mac, GitHub and the server the same:
 
 1. **Only change code on the Mac.** If a file is edited on the server, the next `git pull` refuses to run.
-2. **Don't use `rsync` any more.** It copies files around git, so the server no longer matches GitHub.
+2. **Don't copy files with `rsync` or `scp`.** They go around git, so the server no longer matches GitHub.
 3. **`.env` lives only on the server.** Git never copies it, and it must never go on GitHub.
 
 To check that they match, run `git log -1 --oneline` on the Mac and on the server: both should show the same line. `git status` on the server should say *nothing to commit*.
@@ -223,6 +246,18 @@ All documents (the converted pages and the original PDFs) live in the Docker vol
 ```
 server$ docker run --rm -v pdf2phone_library:/data -v ~/:/backup alpine tar czf /backup/pdf2phone-backup.tgz -C /data .
 mac$ scp you@your-server:~/pdf2phone-backup.tgz ~/Desktop/
+```
+
+For a backup that matches exactly, run `docker compose stop` first and `docker compose start` afterwards.
+
+The backup holds your friends' documents as well as yours. Keep it somewhere private, and delete old copies. If someone deletes their account, they're still in older backups.
+
+To put a backup back (for example on a new server), with the app created but not running:
+
+```
+server$ cd ~/pdf2phone && docker compose create
+server$ docker run --rm -v pdf2phone_library:/data -v ~/:/backup alpine sh -c "tar xzf /backup/pdf2phone-backup.tgz -C /data && chown -R 1000:1000 /data"
+server$ docker compose up -d
 ```
 
 ## Looking at logs

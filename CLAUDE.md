@@ -24,7 +24,7 @@ uv run pdf2phone migrate-accounts -l LIB [--dry-run]    # one-off: shared librar
 uv run pdf2phone set-password EMAIL -l LIB              # emergency password reset
 ```
 
-Deployment is Docker on the user's Hetzner server, behind their existing nginx. See `docs/DEPLOY.md`, `Dockerfile`, `docker-compose.yml` and `deploy/nginx-pdf2phone.conf`. Docker isn't installed on the dev Mac, so the image can't be built locally. The image installs the exact versions in `uv.lock` (`uv export`, minus torch and its GPU packages, which come from the CPU-only index; keep the Dockerfile's torch pins equal to the lock), and `scripts/warmup.py` fails the build if `pymupdf`, `docling` or `docling-math` won't load.
+Deployment is Docker on the user's Hetzner server, behind their existing nginx. See `docs/DEPLOY.md`, `Dockerfile`, `docker-compose.yml` and `deploy/nginx-pdf2phone.conf`. Docker isn't installed on the dev Mac, so the image can't be built locally. The server is shared with another app: `deploy/SHARED-SERVER.md` holds the shared rules (ports, nginx, memory, never prune volumes) and is also read by that app's Claude, so keep pdf2phone's section in it up to date when ports, limits, nginx or deployment change. Updates reach the server via git (Mac push → server `git pull`); moving servers: `docs/MOVE-SERVER.md`. The image installs the exact versions in `uv.lock` (`uv export`, minus torch and its GPU packages, which come from the CPU-only index; keep the Dockerfile's torch pins equal to the lock), and `scripts/warmup.py` fails the build if `pymupdf`, `docling` or `docling-math` won't load.
 
 ## Architecture
 

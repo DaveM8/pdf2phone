@@ -14,7 +14,9 @@ Upload a PDF from your phone. It's converted to Markdown, then into a reader pag
 
 - **[docs/DEPLOY.md](docs/DEPLOY.md)**: putting it on your server (Hetzner/Ubuntu, Docker, behind your existing nginx, HTTPS)
 - **[docs/USING.md](docs/USING.md)**: everyday use from the phone
-- Both also exist as large-print reader pages: `docs/DEPLOY.html`, `docs/USING.html`
+- **[docs/MOVE-SERVER.md](docs/MOVE-SERVER.md)**: moving it, with every account and document, to a new server
+- **[deploy/SHARED-SERVER.md](deploy/SHARED-SERVER.md)**: rules for sharing the server with another app
+- The guides also exist as large-print reader pages: `docs/DEPLOY.html`, `docs/MOVE-SERVER.html`, `docs/USING.html`
 
 ## Converters
 
