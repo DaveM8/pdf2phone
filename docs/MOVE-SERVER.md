@@ -2,6 +2,11 @@
 
 This guide moves pdf2phone, with every account and document, from your old server to a new one. Nobody loses anything, and everyone stays logged in.
 
+Yes Deputy lives on the same old server and moves to the same new one, with its own plan (`server_migration.org`). The two moves are independent: they use different domains, and either can go first. Two things are shared:
+
+- **Step 2**, the base setup of the new server, is done **once**, for both apps.
+- **The old server** is cancelled only after **both** apps have moved and settled in.
+
 Commands that start with `mac$` are typed on your Mac. `old$` means on the old server, and `new$` means on the new server. Everywhere you see `you@old-server` and `you@new-server`, use your SSH logins. Everywhere you see `read.example.com`, use your subdomain.
 
 The server is shared with your other app. Rules that both apps follow are in `deploy/SHARED-SERVER.md`.
@@ -18,9 +23,13 @@ In your domain provider's DNS settings, find the **A record** for `read` (and **
 
 This makes the switch on day 2 take minutes, not hours.
 
-### 2. Install Ubuntu on the new server (shared: do once, for both apps)
+### 2. Set up the new server (shared: do once, for both apps)
 
-Hetzner's dedicated servers start in the **rescue system**. Log in with the rescue password from the Hetzner Robot email, then run:
+Yes Deputy's plan covers this in its step 2 ("Build the new server"): Ubuntu 24.04, the firewall, SSH hardening, fail2ban, nginx, certbot and Docker. **If you've done it there, skip to step 3.** Follow that plan for disks and partitions too: Yes Deputy needs room under `/data`. pdf2phone needs nothing special, and Docker keeps its images and volumes under `/var/lib/docker`.
+
+If you're doing it from here instead:
+
+A server from the auction starts in the **rescue system**. (If it was delivered with Ubuntu already installed, skip `installimage`.) Log in with the rescue password from Hetzner's email, then run:
 
 ```
 new$ installimage
@@ -30,11 +39,11 @@ new$ installimage
 - In the settings file, check that `SWRAID 1` and `SWRAIDLEVEL 1` are set. This mirrors the two SSDs, so if one dies nothing is lost.
 - Save with **F2**, exit with **F10**, then `reboot`.
 
-Then make your normal login user, copy your SSH key to it, and install the basics:
+Then make your normal login user, copy your SSH key to it, and install the basics. Allow SSH **before** turning the firewall on, or you lock yourself out:
 
 ```
 new$ sudo apt-get update && sudo apt-get upgrade -y
-new$ sudo apt-get install -y nginx certbot python3-certbot-nginx git ufw
+new$ sudo apt-get install -y nginx certbot python3-certbot-nginx git ufw fail2ban
 new$ sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable
 ```
 
@@ -86,7 +95,8 @@ Keep it exactly as it is:
 
 - **`PDF2PHONE_SECRET`** must stay the same, or everyone is logged out.
 - **`PDF2PHONE_RECORD_KEY`** must stay the same, or old account-deletion records stop matching.
-- `PDF2PHONE_WORKERS=3` and `PDF2PHONE_MEM_LIMIT=14g` are right for the new server too.
+- `PDF2PHONE_MEM_LIMIT=14g` is right for the new server too. Together with Yes Deputy's limits that's 43 GB of the 64 GB.
+- `PDF2PHONE_WORKERS=3` is right for the new server's 6-core i7-8700.
 
 ### 5. Build the app (don't start it yet)
 
@@ -94,7 +104,7 @@ Keep it exactly as it is:
 new$ cd ~/pdf2phone && docker compose build
 ```
 
-This takes 10–20 minutes. It stops with a `warmup:` error if a converter won't load.
+This takes 10–20 minutes and keeps every core busy. Don't start it between 02:00 and 02:15, when Yes Deputy's nightly update runs (once Yes Deputy is on the new server). It stops with a `warmup:` error if a converter won't load.
 
 ### 6. Add the nginx site
 
@@ -114,7 +124,7 @@ new$ sudo nginx -t && sudo systemctl reload nginx
 
 ### 7. Check Brevo
 
-If you turned on **Authorised IPs** in Brevo (Settings → Security), add the new server's IP address there. Otherwise sign-up and password emails will fail after the move.
+pdf2phone and Yes Deputy share one Brevo account. If you turned on **Authorised IPs** in Brevo (Settings → Security), add the new server's IP address there once, for both apps. Otherwise sign-up and password emails will fail after the move.
 
 ---
 
@@ -178,6 +188,17 @@ On your iPhone, open the home-screen icon. You should still be logged in, with a
 
 ## Afterwards
 
+### Tidy up the disk
+
+The build leaves a few GB behind. Yes Deputy's search stops updating if the disk gets too full, so clear it now:
+
+```
+new$ docker image prune -f
+new$ df -h
+```
+
+This only removes unused images, never the documents volume. `df -h` should show plenty of free space (at least 15% on every line).
+
 ### If something goes wrong
 
 The old server still has everything. Point the DNS record back to the old IP address, then:
@@ -186,7 +207,7 @@ The old server still has everything. Point the DNS record back to the old IP add
 old$ cd ~/pdf2phone && docker compose start
 ```
 
-### Once you're happy (within a week)
+### Once you're happy
 
 The backup file holds your friends' documents, so don't keep extra copies lying around:
 
@@ -198,7 +219,9 @@ new$ rm ~/pdf2phone-backup.tgz
 Then:
 
 1. On GitHub, under **Settings → Deploy keys**, delete the **old** server's key.
-2. Cancel the old server in Hetzner Robot. This erases everything on it, including the old copy of the documents.
+2. **Only when Yes Deputy has moved too**, and its fallback time on the old server is over (one to two weeks), cancel the old server in Hetzner Robot. This erases everything on it, including the old copy of pdf2phone's documents.
 3. Set the DNS TTL back to its old value (e.g. 3600).
 
 From now on, update the new server the usual way: see *Updating after changes* in `docs/DEPLOY.md`.
+
+Neither app has a backup off the server yet. Yes Deputy's plan suggests a Hetzner Storage Box; pdf2phone's backup file (see *Backups* in `docs/DEPLOY.md`) can go in the same one.

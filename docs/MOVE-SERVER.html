@@ -198,7 +198,7 @@ math { font-size: 1.05em; }
 <li class="lvl1"><a href="#moving-pdf2phone-to-a-new-server">Moving pdf2phone to a new server</a></li>
 <li class="lvl2"><a href="#day-1-get-ready-pdf2phone-keeps-working">Day 1: get ready (pdf2phone keeps working)</a></li>
 <li class="lvl3"><a href="#1-shorten-the-dns-wait">1. Shorten the DNS wait</a></li>
-<li class="lvl3"><a href="#2-install-ubuntu-on-the-new-server-shared-do-once-for-both-a">2. Install Ubuntu on the new server (shared: do once, for both apps)</a></li>
+<li class="lvl3"><a href="#2-set-up-the-new-server-shared-do-once-for-both-apps">2. Set up the new server (shared: do once, for both apps)</a></li>
 <li class="lvl3"><a href="#3-connect-the-new-server-to-github">3. Connect the new server to GitHub</a></li>
 <li class="lvl3"><a href="#4-copy-the-settings-file">4. Copy the settings file</a></li>
 <li class="lvl3"><a href="#5-build-the-app-dont-start-it-yet">5. Build the app (don&#39;t start it yet)</a></li>
@@ -212,14 +212,20 @@ math { font-size: 1.05em; }
 <li class="lvl3"><a href="#12-add-https">12. Add HTTPS</a></li>
 <li class="lvl3"><a href="#13-check-it-works">13. Check it works</a></li>
 <li class="lvl2"><a href="#afterwards">Afterwards</a></li>
+<li class="lvl3"><a href="#tidy-up-the-disk">Tidy up the disk</a></li>
 <li class="lvl3"><a href="#if-something-goes-wrong">If something goes wrong</a></li>
-<li class="lvl3"><a href="#once-youre-happy-within-a-week">Once you&#39;re happy (within a week)</a></li>
+<li class="lvl3"><a href="#once-youre-happy">Once you&#39;re happy</a></li>
 </ol></nav>
 </details>
 
 <article id="doc">
 <h1 id="moving-pdf2phone-to-a-new-server">Moving pdf2phone to a new server</h1>
 <p>This guide moves pdf2phone, with every account and document, from your old server to a new one. Nobody loses anything, and everyone stays logged in.</p>
+<p>Yes Deputy lives on the same old server and moves to the same new one, with its own plan (<code>server_migration.org</code>). The two moves are independent: they use different domains, and either can go first. Two things are shared:</p>
+<ul>
+<li><strong>Step 2</strong>, the base setup of the new server, is done <strong>once</strong>, for both apps.</li>
+<li><strong>The old server</strong> is cancelled only after <strong>both</strong> apps have moved and settled in.</li>
+</ul>
 <p>Commands that start with <code>mac$</code> are typed on your Mac. <code>old$</code> means on the old server, and <code>new$</code> means on the new server. Everywhere you see <code>you@old-server</code> and <code>you@new-server</code>, use your SSH logins. Everywhere you see <code>read.example.com</code>, use your subdomain.</p>
 <p>The server is shared with your other app. Rules that both apps follow are in <code>deploy/SHARED-SERVER.md</code>.</p>
 <p><strong>Time needed:</strong> about an hour, spread over two days. pdf2phone is offline for about 15 minutes on day 2.</p>
@@ -227,8 +233,10 @@ math { font-size: 1.05em; }
 <h3 id="1-shorten-the-dns-wait">1. Shorten the DNS wait</h3>
 <p>In your domain provider's DNS settings, find the <strong>A record</strong> for <code>read</code> (and <strong>AAAA</strong>, if there is one). Set its <strong>TTL</strong> to <strong>300</strong> (5 minutes). Leave the IP address as it is for now.</p>
 <p>This makes the switch on day 2 take minutes, not hours.</p>
-<h3 id="2-install-ubuntu-on-the-new-server-shared-do-once-for-both-a">2. Install Ubuntu on the new server (shared: do once, for both apps)</h3>
-<p>Hetzner's dedicated servers start in the <strong>rescue system</strong>. Log in with the rescue password from the Hetzner Robot email, then run:</p>
+<h3 id="2-set-up-the-new-server-shared-do-once-for-both-apps">2. Set up the new server (shared: do once, for both apps)</h3>
+<p>Yes Deputy's plan covers this in its step 2 (&quot;Build the new server&quot;): Ubuntu 24.04, the firewall, SSH hardening, fail2ban, nginx, certbot and Docker. <strong>If you've done it there, skip to step 3.</strong> Follow that plan for disks and partitions too: Yes Deputy needs room under <code>/data</code>. pdf2phone needs nothing special, and Docker keeps its images and volumes under <code>/var/lib/docker</code>.</p>
+<p>If you're doing it from here instead:</p>
+<p>A server from the auction starts in the <strong>rescue system</strong>. (If it was delivered with Ubuntu already installed, skip <code>installimage</code>.) Log in with the rescue password from Hetzner's email, then run:</p>
 <pre><code>new$ installimage
 </code></pre>
 <ul>
@@ -236,9 +244,9 @@ math { font-size: 1.05em; }
 <li>In the settings file, check that <code>SWRAID 1</code> and <code>SWRAIDLEVEL 1</code> are set. This mirrors the two SSDs, so if one dies nothing is lost.</li>
 <li>Save with <strong>F2</strong>, exit with <strong>F10</strong>, then <code>reboot</code>.</li>
 </ul>
-<p>Then make your normal login user, copy your SSH key to it, and install the basics:</p>
+<p>Then make your normal login user, copy your SSH key to it, and install the basics. Allow SSH <strong>before</strong> turning the firewall on, or you lock yourself out:</p>
 <pre><code>new$ sudo apt-get update &amp;&amp; sudo apt-get upgrade -y
-new$ sudo apt-get install -y nginx certbot python3-certbot-nginx git ufw
+new$ sudo apt-get install -y nginx certbot python3-certbot-nginx git ufw fail2ban
 new$ sudo ufw allow OpenSSH &amp;&amp; sudo ufw allow 'Nginx Full' &amp;&amp; sudo ufw enable
 </code></pre>
 <p>Install Docker with step 3 of <code>docs/DEPLOY.md</code>.</p>
@@ -270,12 +278,13 @@ new$ chmod 600 ~/pdf2phone/.env
 <ul>
 <li><strong><code>PDF2PHONE_SECRET</code></strong> must stay the same, or everyone is logged out.</li>
 <li><strong><code>PDF2PHONE_RECORD_KEY</code></strong> must stay the same, or old account-deletion records stop matching.</li>
-<li><code>PDF2PHONE_WORKERS=3</code> and <code>PDF2PHONE_MEM_LIMIT=14g</code> are right for the new server too.</li>
+<li><code>PDF2PHONE_MEM_LIMIT=14g</code> is right for the new server too. Together with Yes Deputy's limits that's 43 GB of the 64 GB.</li>
+<li><code>PDF2PHONE_WORKERS=3</code> is right for the new server's 6-core i7-8700.</li>
 </ul>
 <h3 id="5-build-the-app-dont-start-it-yet">5. Build the app (don't start it yet)</h3>
 <pre><code>new$ cd ~/pdf2phone &amp;&amp; docker compose build
 </code></pre>
-<p>This takes 10–20 minutes. It stops with a <code>warmup:</code> error if a converter won't load.</p>
+<p>This takes 10–20 minutes and keeps every core busy. Don't start it between 02:00 and 02:15, when Yes Deputy's nightly update runs (once Yes Deputy is on the new server). It stops with a <code>warmup:</code> error if a converter won't load.</p>
 <h3 id="6-add-the-nginx-site">6. Add the nginx site</h3>
 <pre><code>new$ sudo cp ~/pdf2phone/deploy/nginx-pdf2phone.conf /etc/nginx/sites-available/pdf2phone
 new$ sudo nano /etc/nginx/sites-available/pdf2phone
@@ -286,7 +295,7 @@ new$ sudo nginx -t &amp;&amp; sudo systemctl reload nginx
 </code></pre>
 <p><code>nginx -t</code> must say <strong>syntax is ok</strong>. HTTPS is added on day 2, once the domain points at the new server.</p>
 <h3 id="7-check-brevo">7. Check Brevo</h3>
-<p>If you turned on <strong>Authorised IPs</strong> in Brevo (Settings → Security), add the new server's IP address there. Otherwise sign-up and password emails will fail after the move.</p>
+<p>pdf2phone and Yes Deputy share one Brevo account. If you turned on <strong>Authorised IPs</strong> in Brevo (Settings → Security), add the new server's IP address there once, for both apps. Otherwise sign-up and password emails will fail after the move.</p>
 <h2 id="day-2-the-move-about-15-minutes-offline">Day 2: the move (about 15 minutes offline)</h2>
 <h3 id="8-stop-the-old-app-and-back-it-up">8. Stop the old app and back it up</h3>
 <p>Stopping first means nothing changes while it's copied.</p>
@@ -322,11 +331,17 @@ new$ curl http://127.0.0.1:8090/healthz
 <li><code>/admin</code> shows both users.</li>
 </ul>
 <h2 id="afterwards">Afterwards</h2>
+<h3 id="tidy-up-the-disk">Tidy up the disk</h3>
+<p>The build leaves a few GB behind. Yes Deputy's search stops updating if the disk gets too full, so clear it now:</p>
+<pre><code>new$ docker image prune -f
+new$ df -h
+</code></pre>
+<p>This only removes unused images, never the documents volume. <code>df -h</code> should show plenty of free space (at least 15% on every line).</p>
 <h3 id="if-something-goes-wrong">If something goes wrong</h3>
 <p>The old server still has everything. Point the DNS record back to the old IP address, then:</p>
 <pre><code>old$ cd ~/pdf2phone &amp;&amp; docker compose start
 </code></pre>
-<h3 id="once-youre-happy-within-a-week">Once you're happy (within a week)</h3>
+<h3 id="once-youre-happy">Once you're happy</h3>
 <p>The backup file holds your friends' documents, so don't keep extra copies lying around:</p>
 <pre><code>old$ rm ~/pdf2phone-backup.tgz
 new$ rm ~/pdf2phone-backup.tgz
@@ -334,10 +349,11 @@ new$ rm ~/pdf2phone-backup.tgz
 <p>Then:</p>
 <ol>
 <li>On GitHub, under <strong>Settings → Deploy keys</strong>, delete the <strong>old</strong> server's key.</li>
-<li>Cancel the old server in Hetzner Robot. This erases everything on it, including the old copy of the documents.</li>
+<li><strong>Only when Yes Deputy has moved too</strong>, and its fallback time on the old server is over (one to two weeks), cancel the old server in Hetzner Robot. This erases everything on it, including the old copy of pdf2phone's documents.</li>
 <li>Set the DNS TTL back to its old value (e.g. 3600).</li>
 </ol>
 <p>From now on, update the new server the usual way: see <em>Updating after changes</em> in <code>docs/DEPLOY.md</code>.</p>
+<p>Neither app has a backup off the server yet. Yes Deputy's plan suggests a Hetzner Storage Box; pdf2phone's backup file (see <em>Backups</em> in <code>docs/DEPLOY.md</code>) can go in the same one.</p>
 
 </article>
 

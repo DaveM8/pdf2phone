@@ -231,6 +231,14 @@ server$ docker compose ps
 
 Wait until it says **healthy**. Your documents are kept, because they live in a Docker volume, not in the project folder. Later builds are much faster than the first.
 
+Every build leaves the old image behind (a few GB). Clear it afterwards, so the disk doesn't slowly fill up. It only removes unused images, never your documents:
+
+```
+server$ docker image prune -f
+```
+
+On the shared server, don't build between 02:00 and 02:15, while Yes Deputy's nightly update runs (see `deploy/SHARED-SERVER.md`).
+
 Three rules keep the Mac, GitHub and the server the same:
 
 1. **Only change code on the Mac.** If a file is edited on the server, the next `git pull` refuses to run.
