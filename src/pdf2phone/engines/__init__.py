@@ -45,15 +45,20 @@ def get_engine(name: str):
         raise EngineUnavailable(f"Engine {name!r} is not installed ({e}).{hint}") from e
 
 
-def available_engines() -> list[str]:
-    out = []
+def engine_problems() -> dict[str, str | None]:
+    """Every engine -> None if it loads, else why it doesn't (for logs and builds)."""
+    out: dict[str, str | None] = {}
     for name in ENGINES:
         try:
             get_engine(name)
-            out.append(name)
-        except EngineUnavailable:
-            pass
+            out[name] = None
+        except EngineUnavailable as e:
+            out[name] = str(e)
     return out
+
+
+def available_engines() -> list[str]:
+    return [name for name, problem in engine_problems().items() if problem is None]
 
 
 def extract(pdf_path: str | Path, engine: str = DEFAULT_ENGINE) -> Document:

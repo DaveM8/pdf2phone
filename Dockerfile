@@ -24,11 +24,20 @@ WORKDIR /home/app/src
 RUN uv venv /opt/venv
 
 # CPU-only PyTorch first: the default wheels pull in gigabytes of GPU libraries.
+# Keep these two versions the same as in uv.lock.
 RUN uv pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cpu
 
-COPY --chown=app:app pyproject.toml README.md ./
+# Everything else at exactly the versions in uv.lock (the ones the tests ran
+# against), not whatever is newest on the day of the build. torch and its GPU
+# packages are left out: the CPU-only torch above already covers them.
+COPY --chown=app:app pyproject.toml uv.lock README.md ./
+RUN uv export --frozen --no-dev --no-emit-project --extra web --extra docling --no-hashes -o /tmp/all.txt \
+ && grep -v -E '^(torch|torchvision|triton|nvidia-[a-z0-9-]+|cuda-[a-z-]+)==' /tmp/all.txt > /tmp/locked.txt \
+ && uv pip install -r /tmp/locked.txt \
+ && rm /tmp/all.txt /tmp/locked.txt
+
 COPY --chown=app:app src ./src
-RUN uv pip install ".[web,docling]"
+RUN uv pip install --no-deps .
 
 # Download all converter models into the image (several minutes, ~1-2 GB).
 COPY --chown=app:app scripts/warmup.py tests/fixtures/sample.pdf /tmp/warmup/

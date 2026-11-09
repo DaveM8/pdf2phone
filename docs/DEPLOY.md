@@ -222,6 +222,8 @@ Press **Ctrl+C** to stop watching. The app keeps running.
 
 **Out of memory, or the app restarts during a Docling conversion.** In `.env`, set `PDF2PHONE_DEFAULT_ENGINE=pymupdf`, then run `docker compose up -d`. Use Docling only when Fast gets a document wrong. You can also set `PDF2PHONE_WORKERS=1` and a lower `PDF2PHONE_MEM_LIMIT` (e.g. `5g`) in `.env` to protect your other sites. A conversion that hits the limit then fails on its own instead of slowing the whole server.
 
+**A converter is missing from the upload form** (for example, Fast). Run `docker compose logs | grep converter`: the app writes why it couldn't load it when it starts. The build also stops with a `warmup:` error if Fast or Careful won't load, and your old version keeps running.
+
 **The build fails while installing torch.** On some processor types the CPU-only PyTorch download can be missing. In the `Dockerfile`, delete the `--index-url https://download.pytorch.org/whl/cpu` part of the `torch` line and build again. The image will be bigger, but it will work.
 
 **Forgot your password.** Run this, then type a new password twice (nothing is shown as you type). It also logs that account out on every device:

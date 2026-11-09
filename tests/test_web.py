@@ -227,6 +227,18 @@ def test_upload_convert_and_read(logged_in):
     assert not (app.state.users.root(uid) / "_static").exists()
 
 
+def test_broken_converter_is_hidden_and_logged(tmp_path, monkeypatch, caplog):
+    # A converter that won't load (e.g. a bad dependency version in the image)
+    # is left off the form, and the log says why instead of it silently vanishing.
+    monkeypatch.setitem(engines.ENGINES, "docling", ("pdf2phone.engines.no_such_module", "docling"))
+    with caplog.at_level("WARNING", logger="pdf2phone"):
+        client, app = make_client(tmp_path)
+    assert any("docling" in r.getMessage() and "not available" in r.getMessage() for r in caplog.records)
+    ready_admin(client)
+    home = client.get("/").text
+    assert 'value="pymupdf"' in home and 'value="docling"' not in home
+
+
 def test_rejects_non_pdf_and_too_big(logged_in):
     client, app = logged_in
     assert upload(client, b"hello", name="x.pdf").headers["location"] == "/?msg=notpdf"

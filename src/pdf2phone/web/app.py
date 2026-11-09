@@ -131,7 +131,13 @@ def create_app(settings: Settings | None = None, mailer: Mailer | None = None) -
 
     def device_mark(user: User) -> str:
         return f"{user.id}:{version(user)}"
-    available = engines.available_engines()
+    # A converter that fails to load is left off the upload form; say why in the
+    # logs (`docker compose logs`), or it just silently disappears.
+    problems = engines.engine_problems()
+    for name, problem in problems.items():
+        if problem:
+            log.warning("converter %s (%s) is not available: %s", name, ENGINE_LABELS.get(name, name), problem)
+    available = [name for name, problem in problems.items() if problem is None]
     engine_options = [{"name": n, "label": ENGINE_LABELS.get(n, n)} for n in available]
     default_engine = settings.default_engine if settings.default_engine in available else available[0]
     static_root = Path(str(page.static_files()))
