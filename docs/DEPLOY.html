@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="pdf2phone-doc" content="docs-deploy">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Putting pdf2phone on your server</title>
+<title>Putting pdf2phone on your Hetzner server</title>
 <style>/* pdf2phone reader.
  *
  * Rule of this file: anything HORIZONTAL around the text (page gutter, list
@@ -189,7 +189,7 @@ math { font-size: 1.05em; }
 <div id="progress" aria-hidden="true"><div></div></div>
 
 <header class="doc-head">
-  <span class="doc-title">Putting pdf2phone on your server</span>
+  <span class="doc-title">Putting pdf2phone on your Hetzner server</span>
 </header>
 
 <details class="toc" id="toc">
@@ -275,6 +275,7 @@ server$ sudo usermod -aG docker $USER
 <pre><code>mac$ rsync -av --exclude .venv --exclude markitdown --exclude .git --exclude '*.html' ~/pdf2phone/ you@your-server:~/pdf2phone/
 </code></pre>
 <p>The <code>'*.html'</code> exclusion only skips generated pages such as the summary. The templates the app needs end in <code>.j2</code>, so they're still copied.</p>
+<p>This copy is only for the very first install. Once the server folder is connected to GitHub, update it with <code>git pull</code> instead (see <em>Updating after changes</em>).</p>
 <h2 id="5-set-your-admin-email-and-first-password">5. Set your admin email and first password</h2>
 <pre><code>server$ cd ~/pdf2phone
 server$ cp .env.example .env
@@ -347,10 +348,26 @@ server$ sudo systemctl reload nginx
 </ol>
 <hr />
 <h2 id="updating-after-changes">Updating after changes</h2>
-<p>On the Mac, run the same <code>rsync</code> command as in step 4. Then:</p>
-<pre><code>server$ cd ~/pdf2phone &amp;&amp; docker compose up -d --build
+<p>The server's <code>~/pdf2phone</code> folder is a copy of the GitHub repository (<code>DaveM8/pdf2phone</code>), connected with a read-only key. Changes always go one way: <strong>Mac → GitHub → server</strong>.</p>
+<p>On the Mac, save the changes and send them to GitHub:</p>
+<pre><code>mac$ cd ~/pdf2phone
+mac$ git add -A
+mac$ git commit -m &quot;What changed&quot;
+mac$ git push
 </code></pre>
-<p>Your documents are kept, because they live in a Docker volume, not in the project folder. Later builds are much faster than the first.</p>
+<p>On the server, fetch them and rebuild:</p>
+<pre><code>server$ cd ~/pdf2phone &amp;&amp; git pull
+server$ docker compose up -d --build
+server$ docker compose ps
+</code></pre>
+<p>Wait until it says <strong>healthy</strong>. Your documents are kept, because they live in a Docker volume, not in the project folder. Later builds are much faster than the first.</p>
+<p>Three rules keep the Mac, GitHub and the server the same:</p>
+<ol>
+<li><strong>Only change code on the Mac.</strong> If a file is edited on the server, the next <code>git pull</code> refuses to run.</li>
+<li><strong>Don't use <code>rsync</code> any more.</strong> It copies files around git, so the server no longer matches GitHub.</li>
+<li><strong><code>.env</code> lives only on the server.</strong> Git never copies it, and it must never go on GitHub.</li>
+</ol>
+<p>To check that they match, run <code>git log -1 --oneline</code> on the Mac and on the server: both should show the same line. <code>git status</code> on the server should say <em>nothing to commit</em>.</p>
 <h2 id="backups">Backups</h2>
 <p>All documents (the converted pages and the original PDFs) live in the Docker volume <code>pdf2phone_library</code>. To copy them into a single file:</p>
 <pre><code>server$ docker run --rm -v pdf2phone_library:/data -v ~/:/backup alpine tar czf /backup/pdf2phone-backup.tgz -C /data .
@@ -365,7 +382,8 @@ mac$ scp you@your-server:~/pdf2phone-backup.tgz ~/Desktop/
 <p><strong>&quot;413 Request Entity Too Large&quot; when uploading.</strong> Raise <code>client_max_body_size</code> in the nginx file <em>and</em> <code>PDF2PHONE_MAX_MB</code> in <code>.env</code>. Then run <code>sudo systemctl reload nginx</code> and <code>docker compose up -d</code>.</p>
 <p><strong>Login works but sends you straight back to the login page.</strong> The site is being opened over plain <code>http://</code>. Use <code>https://</code>, and make sure certbot set up the redirect (step 7).</p>
 <p><strong>A conversion says &quot;Failed&quot;.</strong> Open the ⋯ menu on the document and choose <strong>Convert again</strong> with a different converter. The logs show the full error.</p>
-<p><strong>Out of memory, or the app restarts during a Docling conversion.</strong> In <code>.env</code>, set <code>PDF2PHONE_DEFAULT_ENGINE=pymupdf</code>, then run <code>docker compose up -d</code>. Use Docling only when Fast gets a document wrong. You can also lower <code>mem_limit</code> in <code>docker-compose.yml</code> to protect your other sites. A conversion that hits the limit then fails on its own instead of slowing the whole server.</p>
+<p><strong>Out of memory, or the app restarts during a Docling conversion.</strong> In <code>.env</code>, set <code>PDF2PHONE_DEFAULT_ENGINE=pymupdf</code>, then run <code>docker compose up -d</code>. Use Docling only when Fast gets a document wrong. You can also set <code>PDF2PHONE_WORKERS=1</code> and a lower <code>PDF2PHONE_MEM_LIMIT</code> (e.g. <code>5g</code>) in <code>.env</code> to protect your other sites. A conversion that hits the limit then fails on its own instead of slowing the whole server.</p>
+<p><strong>A converter is missing from the upload form</strong> (for example, Fast). Run <code>docker compose logs | grep converter</code>: the app writes why it couldn't load it when it starts. The build also stops with a <code>warmup:</code> error if Fast or Careful won't load, and your old version keeps running.</p>
 <p><strong>The build fails while installing torch.</strong> On some processor types the CPU-only PyTorch download can be missing. In the <code>Dockerfile</code>, delete the <code>--index-url https://download.pytorch.org/whl/cpu</code> part of the <code>torch</code> line and build again. The image will be bigger, but it will work.</p>
 <p><strong>Forgot your password.</strong> Run this, then type a new password twice (nothing is shown as you type). It also logs that account out on every device:</p>
 <pre><code>server$ cd ~/pdf2phone &amp;&amp; docker compose exec pdf2phone pdf2phone set-password you@example.com
@@ -373,7 +391,7 @@ mac$ scp you@your-server:~/pdf2phone-backup.tgz ~/Desktop/
 
 </article>
 
-<footer class="doc-foot">Converted from docs/DEPLOY.md with pdf2phone.</footer>
+<footer class="doc-foot">Converted from DEPLOY.md with unknown engine.</footer>
 
 <div class="fab" id="fab" hidden>
 <button type="button" data-open="toc-panel" aria-label="Contents">☰</button>  <button type="button" data-open="settings" aria-label="Reading settings">Aa</button>

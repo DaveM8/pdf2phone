@@ -76,6 +76,8 @@ mac$ rsync -av --exclude .venv --exclude markitdown --exclude .git --exclude '*.
 
 The `'*.html'` exclusion only skips generated pages such as the summary. The templates the app needs end in `.j2`, so they're still copied.
 
+This copy is only for the very first install. Once the server folder is connected to GitHub, update it with `git pull` instead (see *Updating after changes*).
+
 ## 5. Set your admin email and first password
 
 ```
@@ -185,13 +187,34 @@ read.example.com {
 
 ## Updating after changes
 
-On the Mac, run the same `rsync` command as in step 4. Then:
+The server's `~/pdf2phone` folder is a copy of the GitHub repository (`DaveM8/pdf2phone`), connected with a read-only key. Changes always go one way: **Mac → GitHub → server**.
+
+On the Mac, save the changes and send them to GitHub:
 
 ```
-server$ cd ~/pdf2phone && docker compose up -d --build
+mac$ cd ~/pdf2phone
+mac$ git add -A
+mac$ git commit -m "What changed"
+mac$ git push
 ```
 
-Your documents are kept, because they live in a Docker volume, not in the project folder. Later builds are much faster than the first.
+On the server, fetch them and rebuild:
+
+```
+server$ cd ~/pdf2phone && git pull
+server$ docker compose up -d --build
+server$ docker compose ps
+```
+
+Wait until it says **healthy**. Your documents are kept, because they live in a Docker volume, not in the project folder. Later builds are much faster than the first.
+
+Three rules keep the Mac, GitHub and the server the same:
+
+1. **Only change code on the Mac.** If a file is edited on the server, the next `git pull` refuses to run.
+2. **Don't use `rsync` any more.** It copies files around git, so the server no longer matches GitHub.
+3. **`.env` lives only on the server.** Git never copies it, and it must never go on GitHub.
+
+To check that they match, run `git log -1 --oneline` on the Mac and on the server: both should show the same line. `git status` on the server should say *nothing to commit*.
 
 ## Backups
 
