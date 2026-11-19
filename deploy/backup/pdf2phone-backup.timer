@@ -1,0 +1,11 @@
+# Nightly, after Yes Deputy's 02:00-02:15 pipeline (deploy/SHARED-SERVER.md, rule 10).
+[Unit]
+Description=Nightly pdf2phone backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

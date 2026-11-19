@@ -39,6 +39,11 @@ MIN_PASSWORD_LENGTH = 12
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 USERS_DIR = "_users"
 DB_DIR = "_db"
+DB_FILE = "pdf2phone.db"
+# Written after an account is deleted.  On the server a systemd path unit watches it
+# and runs a backup straight away, so the newest backup always holds every deletion
+# record (a restore uses them to erase those people again; see web/backup.py).
+BACKUP_REQUEST = "backup-requested"
 CONFIRM_HOURS = 24
 NAME_MAX = 60
 NOTE_MAX = 500
@@ -114,7 +119,7 @@ class UserStore:
         self.library = library
         (library / DB_DIR).mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
-        self._db = sqlite3.connect(library / DB_DIR / "pdf2phone.db", check_same_thread=False)
+        self._db = sqlite3.connect(library / DB_DIR / DB_FILE, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         with self._lock:
             self._db.execute("PRAGMA journal_mode=WAL")
@@ -146,6 +151,11 @@ class UserStore:
     def with_status(self, status: str) -> list[User]:
         with self._lock:
             rows = self._db.execute("SELECT * FROM users WHERE status = ? ORDER BY created", (status,)).fetchall()
+        return [self._user(r) for r in rows]
+
+    def all_users(self) -> list[User]:
+        with self._lock:
+            rows = self._db.execute("SELECT * FROM users ORDER BY id").fetchall()
         return [self._user(r) for r in rows]
 
     def get(self, user_id: int) -> User | None:
@@ -220,6 +230,14 @@ class UserStore:
         if user.is_admin:
             raise ValueError("The admin account can't be deleted.")
         self.erase(user_id, record=(email_hash(key, user.email), by))
+        (self.library / DB_DIR / BACKUP_REQUEST).write_text(f"{time.time():.0f}\n")
+
+    def add_deletion_record(self, email_hash_: str, removed: str, removed_by: str) -> None:
+        """Copy in a record made elsewhere (a newer database, after a restore)."""
+        with self._lock:
+            self._db.execute("INSERT INTO deletions (email_hash, removed, removed_by) VALUES (?, ?, ?)",
+                             (email_hash_, removed, removed_by))
+            self._db.commit()
 
     def deletion_records(self) -> list[dict]:
         with self._lock:

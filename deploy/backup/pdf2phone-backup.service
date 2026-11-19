@@ -1,0 +1,14 @@
+# Installed by deploy/backup/install.sh (which fills in @APP_DIR@).
+[Unit]
+Description=pdf2phone encrypted backup to the Storage Box
+After=docker.service network-online.target
+Wants=network-online.target
+OnFailure=pdf2phone-backup-failed.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/pdf2phone-backup.env
+ExecStart=@APP_DIR@/deploy/backup/pdf2phone-backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=3h

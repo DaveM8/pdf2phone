@@ -71,6 +71,7 @@
     <p>If you don't confirm your email within {{ confirm_hours }} hours, or your request is turned down, <strong>everything you typed here is deleted</strong>.</p>
     <p>You can <strong>delete your account</strong> at any time, on the Account page. That erases your documents and everything you typed here. All that's kept is a record that an account was deleted on that date, with a one-way code made from your email address that can't be turned back into it.</p>
     <p>If the owner removes your account, exactly the same is erased and kept.</p>
+    <p>Encrypted backups are kept for about 30 days, so a deleted account disappears from them within about 6 weeks. If a backup ever has to be restored, deleted accounts are erased again before the site goes back online.</p>
   </section>
 
 {% elif state == "check_email" %}
@@ -99,6 +100,7 @@
 {% elif state == "deleted" %}
   <h1>Your account has been deleted</h1>
   <p>Your documents, your PDFs and your details have all been erased.</p>
+  <p>The encrypted backups lose their copies within about 6 weeks, and a restored backup will never bring your account back.</p>
   <p>Thank you for using the reader.</p>
 
 {% else %}

@@ -1,0 +1,12 @@
+# The app writes this file when someone deletes their account; back up straight
+# away, so the newest backup always lists every deleted account (a restore uses
+# that list to erase them again). Installed by install.sh (fills in @VOLUME@).
+[Unit]
+Description=Back up pdf2phone after an account is deleted
+
+[Path]
+PathChanged=@VOLUME@/_db/backup-requested
+Unit=pdf2phone-backup.service
+
+[Install]
+WantedBy=paths.target

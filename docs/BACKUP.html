@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="pdf2phone-doc" content="docs-move-server">
+<meta name="pdf2phone-doc" content="docs-backup">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Moving pdf2phone to a new server</title>
+<title>Automatic backups</title>
 <style>/* pdf2phone reader.
  *
  * Rule of this file: anything HORIZONTAL around the text (page gutter, list
@@ -189,175 +189,159 @@ math { font-size: 1.05em; }
 <div id="progress" aria-hidden="true"><div></div></div>
 
 <header class="doc-head">
-  <span class="doc-title">Moving pdf2phone to a new server</span>
+  <span class="doc-title">Automatic backups</span>
 </header>
 
 <details class="toc" id="toc">
   <summary>Contents</summary>
   <nav><ol>
-<li class="lvl1"><a href="#moving-pdf2phone-to-a-new-server">Moving pdf2phone to a new server</a></li>
-<li class="lvl2"><a href="#day-1-get-ready-pdf2phone-keeps-working">Day 1: get ready (pdf2phone keeps working)</a></li>
-<li class="lvl3"><a href="#1-shorten-the-dns-wait">1. Shorten the DNS wait</a></li>
-<li class="lvl3"><a href="#2-set-up-the-new-server-shared-do-once-for-both-apps">2. Set up the new server (shared: do once, for both apps)</a></li>
-<li class="lvl3"><a href="#3-connect-the-new-server-to-github">3. Connect the new server to GitHub</a></li>
-<li class="lvl3"><a href="#4-copy-the-settings-file">4. Copy the settings file</a></li>
-<li class="lvl3"><a href="#5-build-the-app-dont-start-it-yet">5. Build the app (don&#39;t start it yet)</a></li>
-<li class="lvl3"><a href="#6-add-the-nginx-site">6. Add the nginx site</a></li>
-<li class="lvl3"><a href="#7-check-brevo">7. Check Brevo</a></li>
-<li class="lvl2"><a href="#day-2-the-move-about-15-minutes-offline">Day 2: the move (about 15 minutes offline)</a></li>
-<li class="lvl3"><a href="#8-stop-the-old-app-and-back-it-up">8. Stop the old app and back it up</a></li>
-<li class="lvl3"><a href="#9-copy-the-backup-to-the-new-server">9. Copy the backup to the new server</a></li>
-<li class="lvl3"><a href="#10-restore-it-and-start-the-app">10. Restore it and start the app</a></li>
-<li class="lvl3"><a href="#11-point-the-domain-at-the-new-server">11. Point the domain at the new server</a></li>
-<li class="lvl3"><a href="#12-add-https">12. Add HTTPS</a></li>
-<li class="lvl3"><a href="#13-check-it-works">13. Check it works</a></li>
-<li class="lvl2"><a href="#afterwards">Afterwards</a></li>
-<li class="lvl3"><a href="#tidy-up-the-disk">Tidy up the disk</a></li>
-<li class="lvl3"><a href="#if-something-goes-wrong">If something goes wrong</a></li>
-<li class="lvl3"><a href="#once-youre-happy">Once you&#39;re happy</a></li>
+<li class="lvl1"><a href="#automatic-backups">Automatic backups</a></li>
+<li class="lvl2"><a href="#setting-it-up">Setting it up</a></li>
+<li class="lvl3"><a href="#1-order-the-storage-box">1. Order the Storage Box</a></li>
+<li class="lvl3"><a href="#2-make-a-sub-account-for-pdf2phone">2. Make a sub-account for pdf2phone</a></li>
+<li class="lvl3"><a href="#3-turn-on-automatic-snapshots">3. Turn on automatic snapshots</a></li>
+<li class="lvl3"><a href="#4-give-the-server-a-key-for-the-storage-box">4. Give the server a key for the Storage Box</a></li>
+<li class="lvl3"><a href="#5-make-the-encryption-password-and-the-settings-file">5. Make the encryption password and the settings file</a></li>
+<li class="lvl3"><a href="#6-switch-on-the-automatic-backups">6. Switch on the automatic backups</a></li>
+<li class="lvl3"><a href="#7-run-the-first-backup-and-check-it">7. Run the first backup and check it</a></li>
+<li class="lvl3"><a href="#8-check-the-failure-email-reaches-you">8. Check the failure email reaches you</a></li>
+<li class="lvl2"><a href="#checking-on-it-now-and-then">Checking on it (now and then)</a></li>
+<li class="lvl2"><a href="#restoring">Restoring</a></li>
+<li class="lvl2"><a href="#if-something-goes-wrong">If something goes wrong</a></li>
+<li class="lvl2"><a href="#notes">Notes</a></li>
 </ol></nav>
 </details>
 
 <article id="doc">
-<h1 id="moving-pdf2phone-to-a-new-server">Moving pdf2phone to a new server</h1>
-<p>This guide moves pdf2phone, with every account and document, from your old server to a new one. Nobody loses anything, and everyone stays logged in.</p>
-<p>Yes Deputy lives on the same old server and moves to the same new one, with its own plan (<code>server_migration.org</code>). The two moves are independent: they use different domains, and either can go first. Two things are shared:</p>
+<h1 id="automatic-backups">Automatic backups</h1>
+<p>Once set up, pdf2phone backs itself up with no help from you:</p>
 <ul>
-<li><strong>Step 2</strong>, the base setup of the new server, is done <strong>once</strong>, for both apps.</li>
-<li><strong>The old server</strong> is cancelled only after <strong>both</strong> apps have moved and settled in.</li>
+<li><strong>Every night at about 03:30</strong>, every account and document is encrypted and copied to a Hetzner Storage Box.</li>
+<li><strong>Within a minute of someone deleting their account</strong>, an extra backup runs, so the newest backup always knows about the deletion.</li>
+<li><strong>Copies older than 30 days are deleted</strong>, as the privacy note on the sign-up page promises.</li>
+<li><strong>Hetzner snapshots the Storage Box</strong> every day as well. Even someone who broke into your server couldn't delete those.</li>
+<li><strong>If a backup fails, you get an email.</strong> No email means it's working.</li>
 </ul>
-<p>Commands that start with <code>mac$</code> are typed on your Mac. <code>old$</code> means on the old server, and <code>new$</code> means on the new server. Everywhere you see <code>you@old-server</code> and <code>you@new-server</code>, use your SSH logins. Everywhere you see <code>read.example.com</code>, use your subdomain.</p>
-<p>The server is shared with your other app. Rules that both apps follow are in <code>deploy/SHARED-SERVER.md</code>.</p>
-<p><strong>Time needed:</strong> about an hour, spread over two days. pdf2phone is offline for about 15 minutes on day 2.</p>
-<h2 id="day-1-get-ready-pdf2phone-keeps-working">Day 1: get ready (pdf2phone keeps working)</h2>
-<h3 id="1-shorten-the-dns-wait">1. Shorten the DNS wait</h3>
-<p>In your domain provider's DNS settings, find the <strong>A record</strong> for <code>read</code> (and <strong>AAAA</strong>, if there is one). Set its <strong>TTL</strong> to <strong>300</strong> (5 minutes). Leave the IP address as it is for now.</p>
-<p>This makes the switch on day 2 take minutes, not hours.</p>
-<h3 id="2-set-up-the-new-server-shared-do-once-for-both-apps">2. Set up the new server (shared: do once, for both apps)</h3>
-<p>Yes Deputy's plan covers this in its step 2 (&quot;Build the new server&quot;): Ubuntu 24.04, the firewall, SSH hardening, fail2ban, nginx, certbot and Docker. <strong>If you've done it there, skip to step 3.</strong> Follow that plan for disks and partitions too: Yes Deputy needs room under <code>/data</code>. pdf2phone needs nothing special, and Docker keeps its images and volumes under <code>/var/lib/docker</code>.</p>
-<p>If you're doing it from here instead:</p>
-<p>A server from the auction starts in the <strong>rescue system</strong>. (If it was delivered with Ubuntu already installed, skip <code>installimage</code>.) Log in with the rescue password from Hetzner's email, then run:</p>
-<pre><code>new$ installimage
+<p><strong>Restoring never brings back a deleted account.</strong> The site stays offline until everyone who deleted their account after that backup has been erased again.</p>
+<p>Commands that start with <code>new$</code> are typed on the server. Do this <strong>after</strong> the move to the new server (<code>docs/MOVE-SERVER.md</code>), not on the old one.</p>
+<p><strong>Time needed:</strong> about 30 minutes, once.</p>
+<hr />
+<h2 id="setting-it-up">Setting it up</h2>
+<h3 id="1-order-the-storage-box">1. Order the Storage Box</h3>
+<p>In Hetzner's console, order a <strong>Storage Box BX11</strong> (1 TB, about €3.20 a month). For <strong>location</strong>, choose <strong>Helsinki</strong>: your server is in Falkenstein, so a problem at one data centre can't affect both.</p>
+<h3 id="2-make-a-sub-account-for-pdf2phone">2. Make a sub-account for pdf2phone</h3>
+<p>In the Storage Box's settings:</p>
+<ol>
+<li>Turn on <strong>SSH support</strong>.</li>
+<li>Under <strong>Sub-accounts</strong>, create one with the folder <code>pdf2phone</code>, and tick <strong>SSH support</strong>. Note its <strong>username</strong> (like <code>u123456-sub1</code>) and the <strong>password</strong> it shows.</li>
+</ol>
+<p>Yes Deputy can have its own sub-account in the same box. Neither app can then see or delete the other's backups.</p>
+<h3 id="3-turn-on-automatic-snapshots">3. Turn on automatic snapshots</h3>
+<p>In the Storage Box's settings, under <strong>Snapshot plan</strong>: <strong>every day</strong> at <strong>05:00</strong>, keep <strong>7</strong>.</p>
+<p>These are made by Hetzner, not by your server. Together with the 30 days restic keeps, a deleted account is fully gone within about 6 weeks, which is what the privacy note says.</p>
+<h3 id="4-give-the-server-a-key-for-the-storage-box">4. Give the server a key for the Storage Box</h3>
+<p>Install restic, then make a key that only root uses for backups:</p>
+<pre><code>new$ sudo apt-get install -y restic
+new$ sudo ssh-keygen -t ed25519 -f /root/.ssh/storagebox-pdf2phone -N &quot;&quot; -C &quot;pdf2phone backups&quot;
 </code></pre>
-<ul>
-<li>Choose <strong>Ubuntu 24.04 LTS</strong>.</li>
-<li>In the settings file, check that <code>SWRAID 1</code> and <code>SWRAIDLEVEL 1</code> are set. This mirrors the two SSDs, so if one dies nothing is lost.</li>
-<li>Save with <strong>F2</strong>, exit with <strong>F10</strong>, then <code>reboot</code>.</li>
-</ul>
-<p>Then make your normal login user, copy your SSH key to it, and install the basics. Allow SSH <strong>before</strong> turning the firewall on, or you lock yourself out:</p>
-<pre><code>new$ sudo apt-get update &amp;&amp; sudo apt-get upgrade -y
-new$ sudo apt-get install -y nginx certbot python3-certbot-nginx git ufw fail2ban
-new$ sudo ufw allow OpenSSH &amp;&amp; sudo ufw allow 'Nginx Full' &amp;&amp; sudo ufw enable
+<p>Send the key to the sub-account. Use your username from step 2 in <strong>both</strong> places. It asks for the sub-account's password once:</p>
+<pre><code>new$ sudo ssh-copy-id -p 23 -s -i /root/.ssh/storagebox-pdf2phone.pub u123456-sub1@u123456-sub1.your-storagebox.de
 </code></pre>
-<p>Install Docker with step 3 of <code>docs/DEPLOY.md</code>.</p>
-<h3 id="3-connect-the-new-server-to-github">3. Connect the new server to GitHub</h3>
-<p>The server gets its own <strong>read-only</strong> key, so it can download the code but never change it.</p>
-<pre><code>new$ ssh-keygen -t ed25519 -f ~/.ssh/github-pdf2phone -N &quot;&quot; -C &quot;pdf2phone deploy key (new server)&quot;
-new$ cat ~/.ssh/github-pdf2phone.pub
+<p>Tell SSH how to reach it:</p>
+<pre><code>new$ sudo nano /root/.ssh/config
 </code></pre>
-<p>Copy the line it prints. On GitHub, open the <code>DaveM8/pdf2phone</code> repository, then <strong>Settings → Deploy keys → Add deploy key</strong>. Paste it, and leave <strong>Allow write access</strong> unticked.</p>
-<p>Tell SSH to use that key for GitHub:</p>
-<pre><code>new$ nano ~/.ssh/config
-</code></pre>
-<p>Add these lines, then save:</p>
-<pre><code>Host github-pdf2phone
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/github-pdf2phone
+<p>Add these lines (with your username), then save:</p>
+<pre><code>Host storagebox-pdf2phone
+    HostName u123456-sub1.your-storagebox.de
+    User u123456-sub1
+    Port 23
+    IdentityFile /root/.ssh/storagebox-pdf2phone
     IdentitiesOnly yes
 </code></pre>
-<p>Download the code. The folder <strong>must</strong> be called <code>pdf2phone</code>, because Docker names the documents volume after it:</p>
-<pre><code>new$ git clone git@github-pdf2phone:DaveM8/pdf2phone.git ~/pdf2phone
+<p>Check it works. It should log in without a password. Type <code>exit</code> to leave:</p>
+<pre><code>new$ sudo sftp storagebox-pdf2phone
 </code></pre>
-<h3 id="4-copy-the-settings-file">4. Copy the settings file</h3>
-<p><code>.env</code> holds your passwords and keys, so it never goes on GitHub. This copies it straight from the old server to the new one through your Mac, without leaving a copy on the Mac:</p>
-<pre><code>mac$ scp -3 you@old-server:~/pdf2phone/.env you@new-server:~/pdf2phone/.env
-new$ chmod 600 ~/pdf2phone/.env
+<h3 id="5-make-the-encryption-password-and-the-settings-file">5. Make the encryption password and the settings file</h3>
+<p>Make a long random password that the server keeps:</p>
+<pre><code>new$ sudo install -d -m 700 /root/.config/restic
+new$ sudo sh -c 'openssl rand -base64 32 &gt; /root/.config/restic/pdf2phone-password'
+new$ sudo cat /root/.config/restic/pdf2phone-password
 </code></pre>
-<p>Keep it exactly as it is:</p>
-<ul>
-<li><strong><code>PDF2PHONE_SECRET</code></strong> must stay the same, or everyone is logged out.</li>
-<li><strong><code>PDF2PHONE_RECORD_KEY</code></strong> must stay the same, or old account-deletion records stop matching.</li>
-<li><code>PDF2PHONE_MEM_LIMIT=14g</code> is right for the new server too. Together with Yes Deputy's limits that's 43 GB of the 64 GB.</li>
-<li><code>PDF2PHONE_WORKERS=3</code> is right for the new server's 6-core i7-8700.</li>
-</ul>
-<h3 id="5-build-the-app-dont-start-it-yet">5. Build the app (don't start it yet)</h3>
-<pre><code>new$ cd ~/pdf2phone &amp;&amp; docker compose build
+<p><strong>Copy what it prints into your password manager now</strong>, named &quot;pdf2phone backup password&quot;. The server needs its copy to make backups by itself. You need yours to open the backups if the server is ever lost. Without it, the backups can't be opened by anyone, you included.</p>
+<p>Make the settings file:</p>
+<pre><code>new$ sudo nano /etc/pdf2phone-backup.env
 </code></pre>
-<p>This takes 10–20 minutes and keeps every core busy. Don't start it between 02:00 and 02:15, when Yes Deputy's nightly update runs (once Yes Deputy is on the new server). It stops with a <code>warmup:</code> error if a converter won't load.</p>
-<h3 id="6-add-the-nginx-site">6. Add the nginx site</h3>
-<pre><code>new$ sudo cp ~/pdf2phone/deploy/nginx-pdf2phone.conf /etc/nginx/sites-available/pdf2phone
-new$ sudo nano /etc/nginx/sites-available/pdf2phone
+<p>Put in these three lines, then save:</p>
+<pre><code>RESTIC_REPOSITORY=sftp:storagebox-pdf2phone:restic
+RESTIC_PASSWORD_FILE=/root/.config/restic/pdf2phone-password
+RESTIC_CACHE_DIR=/var/cache/restic-pdf2phone
 </code></pre>
-<p>Change <code>read.example.com</code> to your subdomain. Check that the port is the same as <code>PDF2PHONE_PORT</code> in <code>.env</code> (normally 8090). Then:</p>
-<pre><code>new$ sudo ln -s /etc/nginx/sites-available/pdf2phone /etc/nginx/sites-enabled/
-new$ sudo nginx -t &amp;&amp; sudo systemctl reload nginx
+<p>Set up the encrypted store on the Storage Box:</p>
+<pre><code>new$ sudo chmod 600 /etc/pdf2phone-backup.env
+new$ sudo ~/pdf2phone/deploy/backup/restic.sh init
 </code></pre>
-<p><code>nginx -t</code> must say <strong>syntax is ok</strong>. HTTPS is added on day 2, once the domain points at the new server.</p>
-<h3 id="7-check-brevo">7. Check Brevo</h3>
-<p>pdf2phone and Yes Deputy share one Brevo account. If you turned on <strong>Authorised IPs</strong> in Brevo (Settings → Security), add the new server's IP address there once, for both apps. Otherwise sign-up and password emails will fail after the move.</p>
-<h2 id="day-2-the-move-about-15-minutes-offline">Day 2: the move (about 15 minutes offline)</h2>
-<h3 id="8-stop-the-old-app-and-back-it-up">8. Stop the old app and back it up</h3>
-<p>Stopping first means nothing changes while it's copied.</p>
-<pre><code>old$ cd ~/pdf2phone &amp;&amp; docker compose stop
-old$ docker run --rm -v pdf2phone_library:/data -v ~/:/backup alpine tar czf /backup/pdf2phone-backup.tgz -C /data .
-old$ ls -lh ~/pdf2phone-backup.tgz
+<p>It should say <strong>created restic repository</strong>.</p>
+<h3 id="6-switch-on-the-automatic-backups">6. Switch on the automatic backups</h3>
+<pre><code>new$ sudo ~/pdf2phone/deploy/backup/install.sh
 </code></pre>
-<h3 id="9-copy-the-backup-to-the-new-server">9. Copy the backup to the new server</h3>
-<pre><code>mac$ scp -3 you@old-server:~/pdf2phone-backup.tgz you@new-server:~/
+<p>It shows when the next nightly backup will run.</p>
+<h3 id="7-run-the-first-backup-and-check-it">7. Run the first backup and check it</h3>
+<pre><code>new$ sudo systemctl start pdf2phone-backup.service
+new$ sudo ~/pdf2phone/deploy/backup/restic.sh snapshots
 </code></pre>
-<h3 id="10-restore-it-and-start-the-app">10. Restore it and start the app</h3>
-<pre><code>new$ cd ~/pdf2phone &amp;&amp; docker compose create
-new$ docker run --rm -v pdf2phone_library:/data -v ~/:/backup alpine sh -c &quot;tar xzf /backup/pdf2phone-backup.tgz -C /data &amp;&amp; chown -R 1000:1000 /data&quot;
-new$ docker compose up -d
-new$ docker compose ps
-new$ curl http://127.0.0.1:8090/healthz
+<p>The list should show one backup, from just now. If <code>systemctl start</code> printed an error, see <em>If something goes wrong</em> below.</p>
+<h3 id="8-check-the-failure-email-reaches-you">8. Check the failure email reaches you</h3>
+<pre><code>new$ sudo systemctl start pdf2phone-backup-failed.service
 </code></pre>
-<p>The first line creates the empty documents volume, the second fills it, and the third starts the app. Wait for <strong>healthy</strong>. <code>curl</code> should print <strong>ok</strong>.</p>
-<h3 id="11-point-the-domain-at-the-new-server">11. Point the domain at the new server</h3>
-<p>In your DNS settings, change the <code>read</code> <strong>A record</strong> to the new server's IP address (and <strong>AAAA</strong>, if you have one). Wait 5 minutes, then check it from the Mac:</p>
-<pre><code>mac$ dig +short read.example.com
+<p>Within a minute you should get an email called <strong>pdf2phone backup FAILED</strong>. That one is only a test, so you can delete it.</p>
+<p>That's it. From now on everything runs by itself.</p>
+<hr />
+<h2 id="checking-on-it-now-and-then">Checking on it (now and then)</h2>
+<p>List the backups:</p>
+<pre><code>new$ sudo ~/pdf2phone/deploy/backup/restic.sh snapshots
 </code></pre>
-<p>It should print the <strong>new</strong> IP address.</p>
-<h3 id="12-add-https">12. Add HTTPS</h3>
-<pre><code>new$ sudo certbot --nginx -d read.example.com
+<p>There should be one for each recent day, and some weekly ones going back about a month.</p>
+<p>Every Sunday the backup also reads back a sample of what's stored, to catch damage early. A problem there sends the failure email too.</p>
+<h2 id="restoring">Restoring</h2>
+<p>Use this if documents or accounts are lost or damaged, or after a server has been rebuilt.</p>
+<p><strong>The newest backup:</strong></p>
+<pre><code>new$ sudo ~/pdf2phone/deploy/backup/pdf2phone-restore.sh
 </code></pre>
-<p>Choose to <strong>redirect</strong> HTTP to HTTPS when it asks.</p>
-<h3 id="13-check-it-works">13. Check it works</h3>
-<p>On your iPhone, open the home-screen icon. You should still be logged in, with all your documents and reading positions. Then check that:</p>
-<ul>
-<li>a document opens,</li>
-<li>uploading a small PDF with <strong>Fast</strong> converts it,</li>
-<li><code>/admin</code> shows both users.</li>
-</ul>
-<h2 id="afterwards">Afterwards</h2>
-<h3 id="tidy-up-the-disk">Tidy up the disk</h3>
-<p>The build leaves a few GB behind. Yes Deputy's search stops updating if the disk gets too full, so clear it now:</p>
-<pre><code>new$ docker image prune -f
-new$ df -h
+<p><strong>An older one:</strong> list them, then give the start of its ID (the first column):</p>
+<pre><code>new$ sudo ~/pdf2phone/deploy/backup/restic.sh snapshots
+new$ sudo ~/pdf2phone/deploy/backup/pdf2phone-restore.sh 1a2b3c4d
 </code></pre>
-<p>This only removes unused images, never the documents volume. <code>df -h</code> should show plenty of free space (at least 15% on every line).</p>
-<h3 id="if-something-goes-wrong">If something goes wrong</h3>
-<p>The old server still has everything. Point the DNS record back to the old IP address, then:</p>
-<pre><code>old$ cd ~/pdf2phone &amp;&amp; docker compose start
-</code></pre>
-<h3 id="once-youre-happy">Once you're happy</h3>
-<p>The backup file holds your friends' documents, so don't keep extra copies lying around:</p>
-<pre><code>old$ rm ~/pdf2phone-backup.tgz
-new$ rm ~/pdf2phone-backup.tgz
-</code></pre>
-<p>Then:</p>
+<p>What the restore does, in order:</p>
 <ol>
-<li>On GitHub, under <strong>Settings → Deploy keys</strong>, delete the <strong>old</strong> server's key.</li>
-<li><strong>Only when Yes Deputy has moved too</strong>, and its fallback time on the old server is over (one to two weeks), cancel the old server in Hetzner Robot. This erases everything on it, including the old copy of pdf2phone's documents.</li>
-<li>Set the DNS TTL back to its old value (e.g. 3600).</li>
+<li>Stops the site.</li>
+<li>Backs up what's there now, first, so a wrong restore can be undone by restoring that one.</li>
+<li>Puts the chosen backup in place.</li>
+<li><strong>Erases again everyone who deleted their account after that backup was made.</strong> It prints how many, never who.</li>
+<li>Only then starts the site again.</li>
 </ol>
-<p>From now on, update the new server the usual way: see <em>Updating after changes</em> in <code>docs/DEPLOY.md</code>.</p>
-<p>Neither app has a backup off the server yet. Yes Deputy's plan suggests a Hetzner Storage Box; pdf2phone's backup file (see <em>Backups</em> in <code>docs/DEPLOY.md</code>) can go in the same one.</p>
+<p>If any step fails, it stops and <strong>leaves the site offline</strong> on purpose. That way a deleted account can never come back online by accident. Read the message, fix the problem, and run it again.</p>
+<p>After a restore, anything added since that backup is gone, and people who changed their password since then use their old one.</p>
+<p><strong>Restoring on a brand-new server:</strong> set up the server and pdf2phone (<code>docs/MOVE-SERVER.md</code>, steps 2–6, without starting the app). Then do steps 4–5 above, using the password from your password manager instead of making a new one (<code>sudo nano /root/.config/restic/pdf2phone-password</code> and paste it in). Skip <code>restic.sh init</code>, and run the restore.</p>
+<h2 id="if-something-goes-wrong">If something goes wrong</h2>
+<p>See what happened:</p>
+<pre><code>new$ sudo journalctl -u pdf2phone-backup.service -n 50
+</code></pre>
+<ul>
+<li><strong>&quot;Permission denied&quot; or a password prompt:</strong> the Storage Box key isn't set up. Repeat step 4.</li>
+<li><strong>&quot;wrong password or no key found&quot;:</strong> <code>/root/.config/restic/pdf2phone-password</code> isn't the password the backups were made with. Paste in the one from your password manager.</li>
+<li><strong>&quot;repository does not exist&quot;:</strong> the <code>init</code> in step 5 wasn't run, or <code>RESTIC_REPOSITORY</code> has a typo.</li>
+<li><strong>No failure email arrived:</strong> check that email works for the app (sign-up emails), and that <code>docker compose ps</code> shows the app healthy.</li>
+</ul>
+<h2 id="notes">Notes</h2>
+<ul>
+<li><strong>What's backed up:</strong> every user's documents and PDFs, and a copy of the account database. Not included: the conversion job list (not needed) and <code>.env</code>. Keep your own copy of <code>.env</code> in your password manager; the backups can't be restored into a working site without its <code>PDF2PHONE_RECORD_KEY</code> and <code>PDF2PHONE_SECRET</code>.</li>
+<li><strong>Time:</strong> backups avoid 02:00–02:15, when Yes Deputy's nightly update runs (see <code>deploy/SHARED-SERVER.md</code>).</li>
+<li><strong>Space:</strong> pdf2phone's backups are a few GB. The BX11's 1 TB leaves plenty of room for Yes Deputy's backups too.</li>
+</ul>
 
 </article>
 
-<footer class="doc-foot">Converted from MOVE-SERVER.md with unknown engine.</footer>
+<footer class="doc-foot">Converted from BACKUP.md with unknown engine.</footer>
 
 <div class="fab" id="fab" hidden>
 <button type="button" data-open="toc-panel" aria-label="Contents">☰</button>  <button type="button" data-open="settings" aria-label="Reading settings">Aa</button>

@@ -249,6 +249,8 @@ To check that they match, run `git log -1 --oneline` on the Mac and on the serve
 
 ## Backups
 
+For automatic, encrypted nightly backups to a Hetzner Storage Box, follow `docs/BACKUP.md`. The commands below make a one-off copy by hand.
+
 All documents (the converted pages and the original PDFs) live in the Docker volume `pdf2phone_library`. To copy them into a single file:
 
 ```

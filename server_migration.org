@@ -1,0 +1,265 @@
+#+TITLE: Yes Deputy: server migration requirements
+#+DATE: 2026-10-30
+#+STARTUP: overview
+
+* Why move
+- The current server was rented for a different project that needed lots of
+  spinning-disk storage. Yes Deputy needs the opposite: fast SSD storage for
+  Elasticsearch and, soon, PostgreSQL.
+- The root SSD is small (224 GB, 71% used) and already holds 97 GB of
+  Elasticsearch indices.
+- The new server will also run the other app (pdf2phone).
+
+* The current server (measured 2026-10-30)
+| Item          | Now                                                     |
+|---------------+---------------------------------------------------------|
+| CPU           | Intel Xeon E3-1275 v6, 4 cores / 8 threads, 3.8 GHz     |
+| RAM           | 62 GB                                                   |
+| SSD           | 224 GB SATA (Micron 5100), root filesystem, 59 GB free  |
+| HDD           | 2 × 4 TB + 1 × 10 TB; /data is one 4 TB disk, 3% used   |
+| OS            | Ubuntu 24.04.5 LTS                                      |
+| Elasticsearch | 8.19.23, 32 GB heap (planned: reduce to 8 GB), on SSD   |
+| Load          | Very light (load average about 0.1)                     |
+
+** Disk use
+| What                                       | Size     | Where | Needed on new box?          |
+|--------------------------------------------+----------+-------+-----------------------------|
+| ES oireachtas-chunks-v2 (live, 7.8M docs)  | 63.9 GB  | SSD   | Yes: the expensive part     |
+| ES oireachtas-chunks (old rollback, 1.5M)  | 33.3 GB  | SSD   | No: delete before moving    |
+| questions_xml/ (AKN XML, all years)        | 19 GB    | HDD   | Yes (copy; slow to refetch) |
+| chunks_all.jsonl (every chunk)             | 12 GB    | HDD   | Yes: needed to re-embed     |
+| questions_json/                            | 3.6 GB   | HDD   | Optional (rebuildable)      |
+| chunks.jsonl, chunks_recent.jsonl          | 3.1 GB   | HDD   | Optional                    |
+| written_answers.parquet                    | 845 MB   | HDD   | Optional (legacy index)     |
+| bills_pdf/ (18,651 PDFs, parked work)      | 39 GB    | HDD   | No: re-download in ~10 min  |
+| bills_chunks.jsonl (parked work)           | 408 MB   | HDD   | Optional (rebuild ~10 min)  |
+| data/users.db (accounts, query counts)     | 32 KB    | HDD   | Yes: critical               |
+| .env (all keys and secrets)                | tiny     | HDD   | Yes: critical, copy by hand |
+
+* Requirements for the new server
+** Storage: the main reason to move
+- *NVMe SSD, at least 1 TB usable*, ideally 2 × 1 TB NVMe in RAID 1, so a
+  failed disk doesn't take the site down or lose the index.
+- What goes on it:
+  | Item                                 | Size now   | Allow for growth |
+  |--------------------------------------+------------+------------------|
+  | ES debates index                     | 64 GB      | 100 GB           |
+  | ES bills index (if built)            | ~3 GB est. | 10 GB            |
+  | ES snapshot space for moves/backups  | 64 GB      | 150 GB           |
+  | PostgreSQL lobbying database         | few GB     | 20 GB            |
+  | Project files, XML, chunk files      | 40 GB      | 100 GB           |
+  | OS, Docker images, pdf2phone         | 30 GB      | 50 GB            |
+  | Total                                |            | about 430 GB     |
+- A spinning disk is optional, for bulky files that are read rarely (raw
+  PDFs, old chunk files, backups). Nice to have, not required.
+
+** Memory
+- Elasticsearch kNN search is fast only when the vectors sit in the OS page
+  cache, outside the Java heap:
+  - 7.8 million int8 vectors × 1,536 bytes ≈ 12 GB, plus the HNSW graph;
+  - the bills index would add about 0.4 GB.
+- Elasticsearch heap: 8 GB is enough (planned anyway; it's 32 GB now, which
+  takes memory away from the page cache).
+- PostgreSQL: 1–2 GB.
+- Two uvicorn workers per site plus pdf2phone: a few GB.
+- *Minimum 32 GB RAM; 64 GB recommended*, so the whole index and the OS
+  cache fit comfortably with room to grow.
+
+** CPU
+- Current use is light. 6–8 modern cores is plenty.
+- The heavy jobs are occasional: re-chunking with 8 workers, kNN under load,
+  and a full re-index after a mapping change.
+- A newer CPU (e.g. Ryzen or a newer Xeon) will be faster per core than
+  the 2017 E3-1275 v6. That helps kNN latency.
+
+** Network and location
+- EU location (Hetzner Germany or Finland is fine): low latency to Irish
+  users, and the data stays in the EU.
+- The app makes outgoing HTTPS calls to OpenAI, Anthropic, DeepSeek,
+  data.oireachtas.ie and lobbying.ie. Make sure nothing blocks these.
+- A stable IPv4 address for DNS (yesdeputy.com, beta.yesdeputy.com) and
+  SMTP reputation.
+
+** OS and software
+- Ubuntu 24.04 LTS, the same as now, so the configs carry over.
+- Elasticsearch *8.19.23 or newer within 8.x*. A snapshot restores only into
+  the same or a newer version; don't go to 9.x until the app's client is
+  updated (requirements pin elasticsearch<9).
+- Python 3.12; nginx; certbot; fail2ban; ufw; Docker (pdf2phone).
+- PostgreSQL 16 from apt, when the lobbying work starts.
+
+* What has to move
+** Critical: can't be recreated
+- .env: OpenAI, Anthropic, DeepSeek, SMTP and Elasticsearch credentials,
+  JWT_SECRET. Keep JWT_SECRET the same, or every user is logged out.
+- data/users.db: accounts and approvals.
+- .env.beta in the beta directory.
+
+** Expensive to recreate: copy, don't rebuild
+- *The Elasticsearch index oireachtas-chunks-v2.* Rebuilding means
+  re-embedding 7.8 million chunks with OpenAI: money, and days of running.
+  Move it with snapshot and restore (below).
+- chunks_all.jsonl: the source for any future re-embed. The index doesn't
+  keep the vectors in _source, so this file is the only way to rebuild
+  without re-chunking.
+- questions_xml/: downloading all of it again from data.oireachtas.ie
+  is slow.
+
+** Configuration to recreate (copy and adjust)
+- systemd units: yesdeputy.service, yesdeputy-beta.service (deploy/ in
+  the repo has the beta one).
+- nginx sites: yesdeputy, beta (deploy/nginx-beta.conf), pdf2phone.
+- TLS certificates: reissue with certbot after DNS moves; simpler than
+  copying /etc/letsencrypt.
+- cron: 0 2 * * * bash /data/members_questions/run_pipeline.sh, logging
+  to pipeline_logs/cron.log.
+- ufw rules (~/ufw_setup.org), fail2ban, SSH hardening
+  (/etc/ssh/sshd_config.d/hardening.conf).
+- The git worktree for beta: clone the repo, then
+  git worktree add ../members_questions-beta beta.
+- The Python venvs: recreate from requirements.txt; don't copy.
+
+** Cheap to recreate: don't copy
+- bills_pdf/ (39 GB): update_bills.py re-downloads it in about 10 minutes.
+- The lobbying register: a few minutes of API calls when that work starts.
+- questions_json/, written_answers.parquet: rebuildable from the XML.
+- The old Elasticsearch index oireachtas-chunks: delete it before moving
+  (it was kept only as a rollback target, and v2 is verified).
+
+* Fix during the move (from the security review)
+Build these into the new server from the start, rather than patching later
+(~/security_review_yesdeputy.org):
+- Finding 3: an nginx rate limit on /api/auth/.
+- Finding 5: chmod 600 on .env and users.db, chmod 700 on data/.
+- Finding 7: pass the Elasticsearch password via environment, not --es-pass
+  on the command line.
+- Elasticsearch heap at 8 GB (/etc/elasticsearch/jvm.options.d/heap.options).
+- Elasticsearch bound to 127.0.0.1 only, as now.
+
+* Migration steps (outline)
+1. *Prepare the old server.*
+   - Delete the old index oireachtas-chunks (frees 33 GB).
+   - Add path.repo to elasticsearch.yml, restart Elasticsearch, and
+     register an fs snapshot repository.
+2. *Build the new server.*
+   - Ubuntu 24.04, ufw first (SSH rule before ufw enable), SSH hardening,
+     fail2ban.
+   - Elasticsearch 8.19.x with the same path.repo, heap 8 GB.
+   - nginx, certbot, Docker, Python 3.12.
+3. *Snapshot and copy the index.*
+   - Snapshot oireachtas-chunks-v2 on the old server: about 64 GB.
+   - rsync the snapshot repository to the new server.
+   - Restore it, then recreate the oireachtas-search alias.
+   - Check: doc count 7,833,223, and a test kNN query.
+4. *Copy the files.*
+   - rsync /data/members_questions: skip bills_pdf/, .venv and the logs.
+   - Copy .env, .env.beta and users.db.
+   - Clone the repo plus the beta worktree, or rsync both directories.
+5. *Recreate the venvs, services, nginx, cron and pdf2phone.*
+   - pdf2phone: follow docs/MOVE-SERVER.md in the pdf2phone repo. Step 2
+     there is this plan's step 2, done once for both apps.
+6. *Test before DNS moves.*
+   - Point your own machine at the new IP (an /etc/hosts entry) and log in.
+   - Run real questions, and check sources and the full-text page.
+   - Check that beta works and is admin-only.
+7. *Cut over.*
+   - Lower the DNS TTL a day ahead.
+   - Stop the cron job and the services on the old server.
+   - Take a final copy of users.db, then switch DNS.
+   - Run certbot on the new server.
+8. *Keep the old server* for a week or two, with services stopped, as a
+   fallback. Then cancel it, but only once pdf2phone has moved too: its
+   documents are on the old server as well.
+
+* Downtime
+- Only the final users.db copy and the DNS switch need the site paused:
+  minutes.
+- Everything else is prepared while the old server keeps serving.
+- The nightly pipeline must not run on both servers, so keep the cron job
+  on only one at a time.
+
+* Server options (prices checked 2026-10-30)
+All prices are per month, excluding VAT. Add an IPv4 address (€1.70/month)
+and, for a private customer in Ireland, VAT. Every option below has 2
+matching NVMe/SSD drives, for RAID 1 with the OS on the mirror.
+
+** Standard (non-auction) dedicated servers
+New hardware, ordered from the AX (AMD) and EX (Intel) lines. Monthly price
+fixed; there's a one-time setup fee; ready in hours to a day.
+
+| Model  | Price/month   | Setup | CPU                                       | RAM                  | Drives                     | Fit                     |
+|--------+---------------+-------+-------------------------------------------+----------------------+----------------------------+-------------------------|
+| AX41   | €59           | €0    | AMD Ryzen 5 3600, 6 cores (Zen 2, 2019)   | 64 GB DDR4           | 2 × 512 GB NVMe            | Drives too small        |
+| EX44   | €59           | €0    | Intel i5-13500, 6P + 8E cores (2023)      | 64 GB DDR4           | 2 × 512 GB NVMe            | Drives too small        |
+| *AX42* | *€79–99*      | €49   | AMD Ryzen 7 PRO 8700GE, 8 cores (Zen 4)   | 64 GB DDR5 *ECC*     | 2 × 1.92 TB Gen4 NVMe (DC) | *Best value*            |
+| EX63   | €99–149       | €74   | Intel Core Ultra 7 265, 8P + 12E cores    | 64 GB DDR5 ECC (192) | 2 × 1 TB NVMe (DC)         | Good, dearer than AX42  |
+| AX102  | €159–259      | €129  | AMD Ryzen 9 7950X3D, 16 cores (Zen 4)     | 128 GB DDR5 ECC      | 2 × 1.92 TB NVMe (DC)      | Lots of headroom        |
+| AX162  | €319–614      | €304  | AMD EPYC 9454P, 48 cores                  | 128–512 GB ECC reg.  | 2 × 1.92 TB+ NVMe (DC)     | Far more than needed    |
+| EX131  | €269–559      | €279  | Intel Xeon Gold 6731P, 32 cores           | 128–256 GB ECC reg.  | 2 × 1.92 TB+ NVMe (DC)     | Far more than needed    |
+
+Notes:
+- "DC" means datacenter-grade NVMe: rated for more writes and better
+  sustained performance, which suits Elasticsearch.
+- The price ranges are by configuration: check what the base price
+  includes in the configurator before ordering.
+- AX41 and EX44 are cheap, but 2 × 512 GB leaves too little room once
+  snapshots and growth are counted (about 430 GB needed).
+
+** Auction servers (live listings 2026-10-30, about 02:00)
+Used hardware, no setup fee, prices fall over time, and listings sell
+quickly, so this is a snapshot. 32 of 92 listings met the requirements
+(≥ 64 GB RAM, 2 SSDs of about 1 TB).
+
+| Price/month | CPU                          | RAM             | Drives           | Location    | ID       | Why                                      |
+|-------------+------------------------------+-----------------+------------------+-------------+----------+------------------------------------------|
+| €91         | Intel i7-8700, 6 cores       | 64 GB           | 2 × 1 TB NVMe    | Falkenstein | #3100455 | Cheapest that meets everything           |
+| €106        | Intel Xeon E-2176G, 6 cores  | 64 GB ECC       | 2 × 960 GB NVMe  | Falkenstein | #3103250 | ECC, server-grade CPU                    |
+| €118        | Intel i7-8700, 6 cores       | 128 GB          | 2 × 1 TB NVMe    | Falkenstein | #3099360 | Double the memory                        |
+| €126        | AMD Ryzen 7 3700X, 8 cores   | 64 GB ECC       | 2 × 1 TB NVMe    | Falkenstein | #3103345 | ECC with 8 cores                         |
+| €127        | AMD Ryzen 7 7700, 8 cores    | 64 GB DDR5      | 2 × 1 TB NVMe    | Helsinki    | #3103391 | Newest CPU on the auction list           |
+
+Avoid the i7-6700 auction servers: they're the same generation as the
+current server's CPU. The 2 × 512 GB auction servers (from €72) are too
+small for the same reason as the AX41 and EX44.
+
+** Decision (2026-11-09)
+- *Ordered: the auction Intel i7-8700* (6 cores, 64 GB DDR4 non-ECC,
+  2 × 1 TB NVMe, Falkenstein FSN1). Access from 2026-11-10.
+- *Correction:* the AX42 with 2 × 1.92 TB at €79–99 below was never
+  actually available. The nearest real option was the EX63 (2 × 1 TB, newer
+  CPU, DDR5 ECC), at about €60/month more plus a setup fee, so the i7-8700
+  was chosen. The comparison below is kept as it was written.
+- It meets the requirements: 2 × 1 TB NVMe in RAID 1 gives about 1 TB
+  usable, against about 430 GB planned for Yes Deputy plus about 30 GB
+  for pdf2phone.
+
+** Comparison and recommendation (2026-10-30, superseded)
+- *The AX42 beats every auction pick that meets the requirements.* At €79–99
+  it's cheaper than the auction's €91–127 options, and it has:
+  - the newest CPU (Zen 4, like the €127 auction Ryzen 7 7700);
+  - ECC memory;
+  - twice the storage (2 × 1.92 TB), on datacenter-grade NVMe.
+  The one extra cost is the €49 setup fee, once.
+- The auction makes sense only when a listing is clearly cheaper than the
+  AX42 for similar hardware. Right now none is.
+- *Recommendation: AX42*, in RAID 1, with the Elasticsearch heap at 8 GB.
+- If you'd rather have 128 GB of RAM and a much faster CPU, the AX102
+  (from €159) is the step up. Yes Deputy doesn't need it today.
+
+** Sources
+- [[https://www.hetzner.com/dedicated-rootserver/matrix-ax/][Hetzner AX line]]
+- [[https://www.hetzner.com/dedicated-rootserver/matrix-ex/][Hetzner EX line]]
+- [[https://www.hetzner.com/sb/][Hetzner server auction]] (live data from
+  /_resources/app/data/app/live_data_sb.json)
+
+* Open decisions
+- +Which server.+ Decided 2026-11-09: the auction i7-8700 (6 cores,
+  64 GB DDR4, 2 × 1 TB NVMe, Falkenstein FSN1), ordered 2026-11-09 and ready
+  2026-11-10. See "Decision" under "Server options".
+- +Whether pdf2phone moves at the same time.+ Decided 2026-11-09: yes, the
+  same week. Its steps are in pdf2phone's docs/MOVE-SERVER.md, and the
+  shared server rules in its deploy/SHARED-SERVER.md.
+- Whether to keep a spinning disk for backups, or use a Hetzner Storage Box
+  for off-server Elasticsearch snapshots and users.db backups. The current
+  server has no off-server backup of users.db or the index. pdf2phone has
+  none either: its pdf2phone_library volume backup can share the Storage Box.

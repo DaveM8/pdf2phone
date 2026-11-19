@@ -387,6 +387,7 @@ server$ docker compose ps
 </ol>
 <p>To check that they match, run <code>git log -1 --oneline</code> on the Mac and on the server: both should show the same line. <code>git status</code> on the server should say <em>nothing to commit</em>.</p>
 <h2 id="backups">Backups</h2>
+<p>For automatic, encrypted nightly backups to a Hetzner Storage Box, follow <code>docs/BACKUP.md</code>. The commands below make a one-off copy by hand.</p>
 <p>All documents (the converted pages and the original PDFs) live in the Docker volume <code>pdf2phone_library</code>. To copy them into a single file:</p>
 <pre><code>server$ docker run --rm -v pdf2phone_library:/data -v ~/:/backup alpine tar czf /backup/pdf2phone-backup.tgz -C /data .
 mac$ scp you@your-server:~/pdf2phone-backup.tgz ~/Desktop/

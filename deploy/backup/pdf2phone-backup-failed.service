@@ -1,0 +1,7 @@
+# Started by pdf2phone-backup.service when it fails (OnFailure=).
+[Unit]
+Description=Email the owner that the pdf2phone backup failed
+
+[Service]
+Type=oneshot
+ExecStart=@APP_DIR@/deploy/backup/pdf2phone-backup-failed.sh

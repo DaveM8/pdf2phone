@@ -11,7 +11,9 @@ import argparse
 import functools
 import http.server
 import os
+import re
 import socket
+import sqlite3
 import subprocess
 import sys
 import time
@@ -182,6 +184,73 @@ def cmd_set_password(args: argparse.Namespace) -> int:
     return 0
 
 
+def _library(args: argparse.Namespace) -> Path:
+    return Path(args.library or os.environ.get("PDF2PHONE_LIBRARY", "/data/library")).expanduser()
+
+
+def cmd_backup_db(args: argparse.Namespace) -> int:
+    """Run by deploy/backup/pdf2phone-backup.sh inside the container."""
+    from .web import backup
+
+    try:
+        backup.copy_database(_library(args), Path(args.dest), os.environ.get("PDF2PHONE_RECORD_KEY", ""))
+    except (OSError, sqlite3.Error, RuntimeError) as e:
+        _progress(f"✗ {e}")
+        return 1
+    return 0
+
+
+def cmd_reapply_deletions(args: argparse.Namespace) -> int:
+    """Run by deploy/backup/pdf2phone-restore.sh before the app starts again."""
+    from .web import backup
+    from .web.users import UserStore
+
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.since):
+        _progress("✗ --since must be a date like 2026-11-10.")
+        return 2
+    key = os.environ.get("PDF2PHONE_RECORD_KEY", "")
+    try:
+        backup.check_key(Path(args.newer), key)
+    except (RuntimeError, sqlite3.Error) as e:
+        _progress(f"✗ {e}")
+        return 1
+    newer = backup.deletion_records(Path(args.newer))
+    store = UserStore(_library(args))
+    try:
+        erased = backup.reapply_deletions(store, newer, args.since, key)
+    except RuntimeError as e:
+        _progress(f"✗ {e}")
+        return 1
+    finally:
+        store.close()
+    # Only a count: logs shouldn't hold anything about the people.
+    print(f"Deletion records checked: {len(newer)}. Accounts erased again: {erased}.")
+    return 0
+
+
+def cmd_email_admin(args: argparse.Namespace) -> int:
+    """Email the owner (body from stdin), e.g. when a backup fails."""
+    from .web.mail import Mailer, MailError
+    from .web.settings import Settings
+
+    try:
+        settings = Settings.from_env()
+    except RuntimeError as e:
+        _progress(f"✗ {e}")
+        return 1
+    if not settings.smtp_host:
+        _progress("✗ Email isn't set up in .env, so nothing was sent.")
+        return 1
+    mailer = Mailer(settings.smtp_host, settings.smtp_port, settings.smtp_user, settings.smtp_password,
+                    settings.mail_from)
+    try:
+        mailer.send(settings.admin_email, args.subject, sys.stdin.read()[-20000:] or "(no details)")
+    except MailError as e:
+        _progress(f"✗ {e}")
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="pdf2phone", description="PDF → large-print reader HTML")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -219,6 +288,23 @@ def main(argv: list[str] | None = None) -> int:
     pw.add_argument("email")
     pw.add_argument("--library", "-l", help="default: $PDF2PHONE_LIBRARY or /data/library")
     pw.set_defaults(func=cmd_set_password)
+
+    b = sub.add_parser("backup-db", help="consistent copy of the account database (used by the backup script)")
+    b.add_argument("dest")
+    b.add_argument("--library", "-l", help="default: $PDF2PHONE_LIBRARY or /data/library")
+    b.set_defaults(func=cmd_backup_db)
+
+    r = sub.add_parser("reapply-deletions",
+                       help="after a restore: erase accounts deleted since that backup (used by the restore script)")
+    r.add_argument("--newer", required=True, help="account database from the newest backup")
+    r.add_argument("--since", required=True, help="UTC date the restored backup was made, YYYY-MM-DD")
+    r.add_argument("--library", "-l", help="default: $PDF2PHONE_LIBRARY or /data/library")
+    r.set_defaults(func=cmd_reapply_deletions)
+
+    e = sub.add_parser("email-admin", help="email the owner; the message is read from stdin")
+    e.add_argument("subject", choices=["pdf2phone backup FAILED"],
+                   help="fixed subjects only: nothing typed by anyone goes in an email header")
+    e.set_defaults(func=cmd_email_admin)
 
     args = p.parse_args(argv)
     return args.func(args)

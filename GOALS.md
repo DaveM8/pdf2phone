@@ -90,6 +90,7 @@ In scope beyond the criteria above: a forgot-password email.
 - [x] AGPL: the owner makes the GitHub repository public, and the app shows a "Source code" link to it. The owner flips the repo to public themselves before any friend signs up. (decided 2026-10-19)
 - [ ] Where nightly backups are stored: the same server, or also somewhere else. (decide by: milestone 4)
 - [x] Wording of the privacy note on the sign-up page (templates/signup.html.j2): approved by the owner 2026-10-19.
+- [x] Backup sentence added to the privacy note, account page and "deleted" page (30-day backups, deleted accounts gone within about 6 weeks, erased again on any restore): approved by the owner 2026-11-09.
 
 ## Milestones
 

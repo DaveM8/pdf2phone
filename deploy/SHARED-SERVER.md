@@ -65,7 +65,12 @@ A private web app that turns PDFs into large-print pages for reading on a phone.
 - Health check: `curl http://127.0.0.1:8090/healthz` prints `ok`.
 - Logs: `cd ~/pdf2phone && docker compose logs --tail 100`.
 - Outgoing email: SMTP to Brevo (`smtp-relay.brevo.com:587`), with its own SMTP key. **The Brevo account is shared with Yes Deputy**: the free plan allows 300 a day for both together. pdf2phone stops itself at 100 a day, which leaves room for Yes Deputy. If Brevo's *Authorised IPs* is on, the server's IP is listed once for both apps.
-- Backups: there's **no off-server backup yet**, for either app. Yes Deputy's plan lists a Hetzner Storage Box as an open decision; pdf2phone's `pdf2phone_library` volume should go there too (backup commands are in `docs/DEPLOY.md`). Never run backups at 02:00–02:15.
+- Backups (`docs/BACKUP.md`, scripts in `deploy/backup/`): restic, encrypted, to a Hetzner Storage Box BX11 in Helsinki, in its own sub-account (`pdf2phone` folder; Yes Deputy should use a separate sub-account in the same box). Run as root by systemd:
+  - `pdf2phone-backup.timer`: nightly at 03:30 (± 10 min), after the 02:00 window.
+  - `pdf2phone-backup.path`: also within a minute of an account deletion.
+  - `pdf2phone-backup-failed.service`: emails the owner if a backup fails.
+  - Settings `/etc/pdf2phone-backup.env`; password `/root/.config/restic/pdf2phone-password`; SSH key `/root/.ssh/storagebox-pdf2phone` (host alias `storagebox-pdf2phone` in root's `~/.ssh/config`). Don't reuse these for another app.
+  - Restores go through `deploy/backup/pdf2phone-restore.sh` only: it erases again accounts deleted after the backup before the site starts (a privacy promise to pdf2phone's users). Never restore pdf2phone's volume by hand.
 - GitHub access: a read-only deploy key, `~/.ssh/github-pdf2phone`, with a `github-pdf2phone` host alias in `~/.ssh/config`. Use your own key and alias for your app; don't reuse this one.
 
 **Resources:**
@@ -161,5 +166,6 @@ Add a line whenever something shared changes (dates as YYYY-MM-DD).
 - 2026-11-09: file created while planning the move to the new FSN1 server (pdf2phone).
 - 2026-11-09: Yes Deputy section and table row added (Yes Deputy).
 - 2026-11-09: added the shared backup gap (pdf2phone).
+- 2026-11-09: pdf2phone backups designed: restic to a Storage Box sub-account, nightly 03:30, systemd units `pdf2phone-backup.*` (pdf2phone).
 - 2026-11-09: server bought: i7-8700 auction server, 2 × 1 TB NVMe, 64 GB, FSN1. The AX42 configuration in `server_migration.org` turned out not to be available at that price (pdf2phone).
 - 2026-11-09: shared rules widened for an app without Docker (`MemoryMax=`, host services on 127.0.0.1); added rules 9–11 (disk, 02:00 window, kernel settings); pdf2phone notes on the shared Brevo account and pruning images (pdf2phone).
