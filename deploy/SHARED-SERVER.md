@@ -54,7 +54,7 @@ Port 8091 is used only briefly by pdf2phone's upgrade rehearsal (`deploy/rehears
 
 ## pdf2phone
 
-A private web app that turns PDFs into large-print pages for reading on a phone. It has a few user accounts: the owner and their friends. Source: the private GitHub repository `DaveM8/pdf2phone`. Full details are in its `CLAUDE.md`, `docs/DEPLOY.md` and `docs/MOVE-SERVER.md`.
+A private web app that turns PDFs into large-print pages for reading on a phone. It has a few user accounts: the owner and their friends. Source: the **public** GitHub repository `DaveM8/pdf2phone`, so this file is public too. Never commit secrets, real IP addresses, Storage Box usernames, security findings or private notes to it. Full details are in its `CLAUDE.md` and `docs/DEPLOY.md`, and in the owner's `docs/MOVE-SERVER.md` (kept on the Mac, not in the repository).
 
 **On the server:**
 
@@ -171,3 +171,4 @@ Add a line whenever something shared changes (dates as YYYY-MM-DD).
 - 2026-11-09: server bought: i7-8700 auction server, 2 × 1 TB NVMe, 64 GB, FSN1. The AX42 configuration in `server_migration.org` turned out not to be available at that price (pdf2phone).
 - 2026-11-09: shared rules widened for an app without Docker (`MemoryMax=`, host services on 127.0.0.1); added rules 9–11 (disk, 02:00 window, kernel settings); pdf2phone notes on the shared Brevo account and pruning images (pdf2phone).
 - 2026-11-22: added `deploy/BACKUP-FOR-OTHER-APPS.md`, a guide for setting up backups the same way in another app (pdf2phone).
+- 2026-11-22: pdf2phone's repository is public: noted, with what must never be committed (pdf2phone).
