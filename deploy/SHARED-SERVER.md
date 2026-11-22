@@ -69,7 +69,8 @@ A private web app that turns PDFs into large-print pages for reading on a phone.
   - `pdf2phone-backup.timer`: nightly at 03:30 (± 10 min), after the 02:00 window.
   - `pdf2phone-backup.path`: also within a minute of an account deletion.
   - `pdf2phone-backup-failed.service`: emails the owner if a backup fails.
-  - Settings `/etc/pdf2phone-backup.env`; password `/root/.config/restic/pdf2phone-password`; SSH key `/root/.ssh/storagebox-pdf2phone` (host alias `storagebox-pdf2phone` in root's `~/.ssh/config`). Don't reuse these for another app.
+  - Settings `/etc/pdf2phone-backup.env`; password `/root/.config/restic/pdf2phone-password`; SSH key `/root/.ssh/storagebox-pdf2phone` (host alias `bubox` in root's `~/.ssh/config`, so `RESTIC_REPOSITORY=sftp:bubox:restic`). Don't reuse these for another app.
+  - To give another app the same kind of backups, read `deploy/BACKUP-FOR-OTHER-APPS.md`.
   - Restores go through `deploy/backup/pdf2phone-restore.sh` only: it erases again accounts deleted after the backup before the site starts (a privacy promise to pdf2phone's users). Never restore pdf2phone's volume by hand.
 - GitHub access: a read-only deploy key, `~/.ssh/github-pdf2phone`, with a `github-pdf2phone` host alias in `~/.ssh/config`. Use your own key and alias for your app; don't reuse this one.
 
@@ -169,3 +170,4 @@ Add a line whenever something shared changes (dates as YYYY-MM-DD).
 - 2026-11-09: pdf2phone backups designed: restic to a Storage Box sub-account, nightly 03:30, systemd units `pdf2phone-backup.*` (pdf2phone).
 - 2026-11-09: server bought: i7-8700 auction server, 2 × 1 TB NVMe, 64 GB, FSN1. The AX42 configuration in `server_migration.org` turned out not to be available at that price (pdf2phone).
 - 2026-11-09: shared rules widened for an app without Docker (`MemoryMax=`, host services on 127.0.0.1); added rules 9–11 (disk, 02:00 window, kernel settings); pdf2phone notes on the shared Brevo account and pruning images (pdf2phone).
+- 2026-11-22: added `deploy/BACKUP-FOR-OTHER-APPS.md`, a guide for setting up backups the same way in another app (pdf2phone).

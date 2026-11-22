@@ -61,7 +61,7 @@ new$ sudo nano /root/.ssh/config
 Add these lines (with your username), then save:
 
 ```
-Host storagebox-pdf2phone
+Host bubox
     HostName u123456-sub1.your-storagebox.de
     User u123456-sub1
     Port 23
@@ -72,7 +72,7 @@ Host storagebox-pdf2phone
 Check it works. It should log in without a password. Type `exit` to leave:
 
 ```
-new$ sudo sftp storagebox-pdf2phone
+new$ sudo sftp bubox
 ```
 
 ### 5. Make the encryption password and the settings file
@@ -96,7 +96,7 @@ new$ sudo nano /etc/pdf2phone-backup.env
 Put in these three lines, then save:
 
 ```
-RESTIC_REPOSITORY=sftp:storagebox-pdf2phone:restic
+RESTIC_REPOSITORY=sftp:bubox:restic
 RESTIC_PASSWORD_FILE=/root/.config/restic/pdf2phone-password
 RESTIC_CACHE_DIR=/var/cache/restic-pdf2phone
 ```

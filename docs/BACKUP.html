@@ -251,7 +251,7 @@ new$ sudo ssh-keygen -t ed25519 -f /root/.ssh/storagebox-pdf2phone -N &quot;&quo
 <pre><code>new$ sudo nano /root/.ssh/config
 </code></pre>
 <p>Add these lines (with your username), then save:</p>
-<pre><code>Host storagebox-pdf2phone
+<pre><code>Host bubox
     HostName u123456-sub1.your-storagebox.de
     User u123456-sub1
     Port 23
@@ -259,7 +259,7 @@ new$ sudo ssh-keygen -t ed25519 -f /root/.ssh/storagebox-pdf2phone -N &quot;&quo
     IdentitiesOnly yes
 </code></pre>
 <p>Check it works. It should log in without a password. Type <code>exit</code> to leave:</p>
-<pre><code>new$ sudo sftp storagebox-pdf2phone
+<pre><code>new$ sudo sftp bubox
 </code></pre>
 <h3 id="5-make-the-encryption-password-and-the-settings-file">5. Make the encryption password and the settings file</h3>
 <p>Make a long random password that the server keeps:</p>
@@ -272,7 +272,7 @@ new$ sudo cat /root/.config/restic/pdf2phone-password
 <pre><code>new$ sudo nano /etc/pdf2phone-backup.env
 </code></pre>
 <p>Put in these three lines, then save:</p>
-<pre><code>RESTIC_REPOSITORY=sftp:storagebox-pdf2phone:restic
+<pre><code>RESTIC_REPOSITORY=sftp:bubox:restic
 RESTIC_PASSWORD_FILE=/root/.config/restic/pdf2phone-password
 RESTIC_CACHE_DIR=/var/cache/restic-pdf2phone
 </code></pre>

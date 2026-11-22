@@ -6,3 +6,6 @@ library/
 compare-*/
 markitdown/
 pdf2phone-summary.html
+server_migration.org
+docs/MOVE-SERVER.md
+docs/MOVE-SERVER.html
